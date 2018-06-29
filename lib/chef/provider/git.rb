@@ -50,6 +50,12 @@ class Chef
             "Cannot clone #{new_resource} to #{cwd}, the enclosing directory #{dirname} does not exist")
         end
 
+        requirements.assert(:checkout) do |a|
+          a.assertion { target_dir_non_existent_or_empty? }
+          a.failure_message(Chef::Exceptions::DestinationAlreadyExists,
+            "Cannot clone #{new_resource} into #{cwd}, the destination is not a directory or not empty.")
+        end
+
         requirements.assert(:all_actions) do |a|
           a.assertion { !(new_resource.revision =~ /^origin\//) }
           a.failure_message Chef::Exceptions::InvalidRemoteGitReference,
@@ -72,20 +78,16 @@ class Chef
       end
 
       def action_checkout
-        if target_dir_non_existent_or_empty?
-          clone
-          if new_resource.enable_checkout
-            checkout
-          end
-          enable_submodules
-          add_remotes
-        else
-          logger.trace "#{new_resource} checkout destination #{cwd} already exists or is a non-empty directory"
+        clone
+        if new_resource.enable_checkout
+          checkout
         end
+        enable_submodules
+        add_remotes
       end
 
       def action_export
-        action_checkout
+        run_action :checkout
         converge_by("complete the export by removing #{cwd}.git after checkout") do
           FileUtils.rm_rf(::File.join(cwd, ".git"))
         end
@@ -101,7 +103,7 @@ class Chef
           end
           add_remotes
         else
-          action_checkout
+          run_action :checkout
         end
       end
 
@@ -132,7 +134,7 @@ class Chef
 
       def find_current_revision
         logger.trace("#{new_resource} finding current git revision")
-        if ::File.exist?(::File.join(cwd, ".git"))
+        if existing_git_clone?
           # 128 is returned when we're not in a git repo. this is fine
           result = git("rev-parse", "HEAD", cwd: cwd, returns: [0, 128]).stdout.strip
         end

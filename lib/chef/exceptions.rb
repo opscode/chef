@@ -141,6 +141,7 @@ class Chef
     class IllegalChecksumRevert < RuntimeError; end
     class CookbookVersionNameMismatch < ArgumentError; end
     class MissingParentDirectory < RuntimeError; end
+    class DestinationAlreadyExists < RuntimeError; end
     class UnresolvableGitReference < RuntimeError; end
     class InvalidRemoteGitReference < RuntimeError; end
     class InvalidEnvironmentRunListSpecification < ArgumentError; end
