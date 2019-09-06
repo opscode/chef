@@ -60,7 +60,7 @@ describe Chef::Provider::Package::Chocolatey do
     EOF
     remote_list_obj = double(stdout: remote_list_stdout)
     package_names.each do |pkg|
-      allow(provider).to receive(:shell_out_compacted!).with("#{choco_exe} list -r #{pkg}#{args}", { returns: [0], timeout: timeout }).and_return(remote_list_obj)
+      allow(provider).to receive(:shell_out_compacted!).with("#{choco_exe} list -r -a -e #{pkg}#{args}", { returns: [0], timeout: timeout }).and_return(remote_list_obj)
     end
   end
 
