@@ -19,6 +19,6 @@
 # limitations under the License.
 
 $:.unshift(File.join(File.dirname(__FILE__), "..", "lib"))
-require "chef/application/solo"
+require "chef/application/client"
 
-Chef::Application::Solo.new.run(enforce_license: true)
+Chef::Application::Client.new(solo: true).run(enforce_license: true)

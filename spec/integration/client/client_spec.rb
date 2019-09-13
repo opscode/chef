@@ -45,7 +45,7 @@ describe "chef-client" do
   # we're running `chef-client` from the source tree and not the external one.
   # cf. CHEF-4914
   let(:chef_client) { "bundle exec #{Chef::Dist::CLIENT} --minimal-ohai" }
-  let(:chef_solo) { "bundle exec #{Chef::Dist::SOLOEXEC} --legacy-mode --minimal-ohai" }
+  let(:chef_solo) { "bundle exec #{Chef::Dist::SOLOEXEC} --minimal-ohai" }
 
   when_the_repository "has a cookbook with a no-op recipe" do
     before { file "cookbooks/x/recipes/default.rb", "" }

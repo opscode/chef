@@ -17,7 +17,7 @@ describe Chef::Dist::SOLOEXEC do
 
   let(:cookbook_ancient_100_metadata_rb) { cb_metadata("ancient", "1.0.0") }
 
-  let(:chef_solo) { "bundle exec #{Chef::Dist::SOLOEXEC} --legacy-mode --minimal-ohai" }
+  let(:chef_solo) { "bundle exec #{Chef::Dist::SOLOEXEC} --minimal-ohai" }
 
   when_the_repository "creates nodes" do
     let(:nodes_dir) { File.join(@repository_dir, "nodes") }
@@ -116,7 +116,7 @@ describe Chef::Dist::SOLOEXEC do
         file_cache_path "#{path_to("config/cache")}"
       EOM
       result = shell_out("#{chef_solo} -c \"#{path_to("config/solo.rb")}\" -o 'x::default' -l debug", cwd: chef_dir)
-      expect(result.exitstatus).to eq(0) # For CHEF-5120 this becomes 1
+      expect(result.exitstatus).to eq(1)
       expect(result.stdout).to include("WARN: MissingCookbookDependency")
     end
   end

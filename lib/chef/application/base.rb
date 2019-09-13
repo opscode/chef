@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+require_relative "../../chef"
 require_relative "../application"
 require_relative "../client"
 require_relative "../log"
@@ -22,9 +23,12 @@ require_relative "../mixin/shell_out"
 require_relative "../config_fetcher"
 require_relative "../dist"
 require_relative "../daemon"
+require_relative "../workstation_config_loader"
 require "chef-config/mixin/dot_d"
 require "license_acceptance/cli_flags/mixlib_cli"
 require "mixlib/archive" unless defined?(Mixlib::Archive)
+require "fileutils" unless defined?(FileUtils)
+require "uri" unless defined?(URI)
 
 # This is a temporary class being used as a part of an effort to reduce duplication
 # between Chef::Application::Client and Chef::Application::Solo.
@@ -44,6 +48,9 @@ class Chef::Application::Base < Chef::Application
 
   # Mimic self_pipe sleep from Unicorn to capture signals safely
   SELF_PIPE = [] # rubocop:disable Style/MutableConstant
+
+  # @return <Boolean> If we have been called from chef-solo
+  attr_reader :solo_flag
 
   option :config_option,
     long: "--config-option OPTION=VALUE",
@@ -160,6 +167,15 @@ class Chef::Application::Base < Chef::Application
     long: "--[no-]fork",
     description: "Fork #{Chef::Dist::PRODUCT} process."
 
+  unless Chef::Platform.windows?
+    option :daemonize,
+      short: "-d [WAIT]",
+      long: "--daemonize [WAIT]",
+      description: "Daemonize the process. Accepts an optional integer which is the " \
+        "number of seconds to wait before the first daemonized run.",
+      proc: lambda { |wait| wait =~ /^\d+$/ ? wait.to_i : true }
+  end
+
   option :why_run,
     short: "-W",
     long: "--why-run",
@@ -176,6 +192,12 @@ class Chef::Application::Base < Chef::Application
         Chef::RunList::RunListItem.new(item)
       end
     }
+
+  option :pid_file,
+    short: "-P PID_FILE",
+    long: "--pid PIDFILE",
+    description: "Set the PID file location, for the #{Chef::Dist::PRODUCT} daemon process. Defaults to /tmp/chef-client.pid.",
+    proc: nil
 
   option :run_lock_timeout,
     long: "--run-lock-timeout SECONDS",
@@ -295,6 +317,114 @@ class Chef::Application::Base < Chef::Application
 
   attr_reader :chef_client_json
 
+  def reconfigure
+    super
+
+    if Chef::Config[:local_mode] || solo_flag || Chef::Config[:solo_legacy_mode]
+      Chef::Config[:solo] = true
+      unless Chef::Config[:solo_legacy_mode]
+        Chef::Config.local_mode = true
+      end
+    end
+
+    # Load all config files in client.d
+    if Chef::Config[:solo]
+      load_dot_d(Chef::Config[:solo_d_dir]) if Chef::Config[:solo_d_dir]
+    else
+      load_dot_d(Chef::Config[:client_d_dir]) if Chef::Config[:client_d_dir]
+    end
+
+    set_specific_recipes
+
+    Chef::Config[:fips] = config[:fips] if config.key? :fips
+
+    raise Chef::Exceptions::PIDFileLockfileMatch if Chef::Util::PathHelper.paths_eql? (Chef::Config[:pid_file] || "" ), (Chef::Config[:lockfile] || "")
+
+    Chef::Config[:chef_server_url] = config[:chef_server_url] if config.key?(:chef_server_url)
+
+    if Chef::Config.local_mode
+      if Chef::Config.key?(:chef_repo_path) && Chef::Config.chef_repo_path.nil?
+        Chef::Config.delete(:chef_repo_path)
+        Chef::Log.warn "chef_repo_path was set in a config file but was empty. Assuming #{Chef::Config.chef_repo_path}"
+      end
+
+      if Chef::Config.local_mode && !Chef::Config.key?(:cookbook_path) && !Chef::Config.key?(:chef_repo_path)
+        Chef::Config.chef_repo_path = Chef::Config.find_chef_repo_path(Dir.pwd)
+      end
+    end
+
+    if Chef::Config[:recipe_url]
+      if !Chef::Config.solo
+        Chef::Application.fatal!("recipe-url can be used only in local-mode")
+      else
+        if Chef::Config[:delete_entire_chef_repo]
+          Chef::Log.trace "Cleanup path #{Chef::Config.chef_repo_path} before extract recipes into it"
+          FileUtils.rm_rf(Chef::Config.chef_repo_path, secure: true)
+        end
+        Chef::Log.trace "Creating path #{Chef::Config.chef_repo_path} to extract recipes into"
+        FileUtils.mkdir_p(Chef::Config.chef_repo_path)
+        tarball_path = File.join(Chef::Config.chef_repo_path, "recipes.tgz")
+        fetch_recipe_tarball(Chef::Config[:recipe_url], tarball_path)
+        Mixlib::Archive.new(tarball_path).extract(Chef::Config.chef_repo_path, perms: false, ignore: /^\.$/)
+        config_path = File.join(Chef::Config.chef_repo_path, "#{Chef::Dist::USER_CONF_DIR}/config.rb")
+        Chef::Config.from_string(IO.read(config_path), config_path) if File.file?(config_path)
+      end
+    end
+
+    Chef::Config.chef_zero.host = config[:chef_zero_host] if config[:chef_zero_host]
+    Chef::Config.chef_zero.port = config[:chef_zero_port] if config[:chef_zero_port]
+
+    if config[:target] || Chef::Config.target
+      Chef::Config.target_mode.enabled = true
+      Chef::Config.target_mode.host = config[:target] || Chef::Config.target
+      Chef::Config.node_name = Chef::Config.target_mode.host unless Chef::Config.node_name
+    end
+
+    if Chef::Config[:daemonize]
+      Chef::Config[:interval] ||= 1800
+    end
+
+    if Chef::Config[:once]
+      Chef::Config[:interval] = nil
+      Chef::Config[:splay] = nil
+    end
+
+    # supervisor processes are enabled by default for interval-running processes but not for one-shot runs
+    if Chef::Config[:client_fork].nil?
+      Chef::Config[:client_fork] = !!Chef::Config[:interval]
+    end
+
+    if Chef::Config[:interval]
+      if Chef::Platform.windows?
+        Chef::Application.fatal!(windows_interval_error_message)
+      elsif !Chef::Config[:client_fork]
+        Chef::Application.fatal!(unforked_interval_error_message)
+      end
+    end
+
+    if Chef::Config[:json_attribs]
+      config_fetcher = Chef::ConfigFetcher.new(Chef::Config[:json_attribs])
+      @chef_client_json = config_fetcher.fetch_json
+    end
+  end
+
+  def load_config_file
+    if !config.key?(:config_file) && !config[:disable_config]
+      if config[:local_mode]
+        config[:config_file] = Chef::WorkstationConfigLoader.new(nil, Chef::Log).config_location
+      else
+        if Chef::Config[:solo]
+          config[:config_file] = Chef::Config.platform_specific_path("#{Chef::Dist::CONF_DIR}/solo.rb")
+        else
+          config[:config_file] = Chef::Config.platform_specific_path("#{Chef::Dist::CONF_DIR}/client.rb")
+        end
+      end
+    end
+
+    # Load the client.rb configuration
+    super
+  end
+
   def setup_application
     Chef::Daemon.change_privilege
   end
@@ -336,6 +466,25 @@ class Chef::Application::Base < Chef::Application
     else
       interval_run_chef_client
     end
+  end
+
+  def run(enforce_license: false)
+    setup_signal_handlers
+    reconfigure
+    # setup_application does a Dir.chdir("/") and cannot come before reconfigure or many things break
+    setup_application
+    check_license_acceptance if enforce_license
+    for_ezra if Chef::Config[:ez]
+    if Chef::Config[:solo_legacy_mode]
+      Chef.deprecated(:solo_legacy_mode, "#{Chef::Dist::SOLOEXEC} --legacy-mode is deprecated and will be removed in #{Chef::Dist::PRODUCT} 16 (April 2020)")
+    end
+    run_application
+  end
+
+  def configure_logging
+    super
+    Mixlib::Authentication::Log.use_log_devices( Chef::Log )
+    Ohai::Log.use_log_devices( Chef::Log )
   end
 
   private
