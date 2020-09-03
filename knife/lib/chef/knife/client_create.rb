@@ -81,6 +81,15 @@ class Chef
           client.public_key File.read(File.expand_path(config[:public_key]))
         end
 
+        # Check the file before creating the client so the api is more transactional.
+        if config[:file]
+          file = config[:file]
+          unless File.exist?(file) ? File.writable?(file) : File.writable?(File.dirname(file))
+            ui.fatal "File #{config[:file]} is not writable.  Check permissions."
+            exit 1
+          end
+        end
+
         output = edit_hash(client)
         final_client = create_client(output)
         ui.info("Created #{final_client}")
