@@ -94,6 +94,9 @@ class Chef
       # if the service is masked or not
       property :masked, [ TrueClass, FalseClass ], skip_docs: true
 
+      # if the service is static or not
+      property :static, [ TrueClass, FalseClass ], skip_docs: true
+
       # if the service is indirect or not
       property :indirect, [ TrueClass, FalseClass ], skip_docs: true
 

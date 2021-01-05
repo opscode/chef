@@ -51,15 +51,18 @@ class Chef::Provider::Service::Systemd < Chef::Provider::Service::Simple
         current_resource.running(false)
         current_resource.enabled(false)
         current_resource.masked(false)
+	current_resource.static(false)
         current_resource.indirect(false)
       end
     else
       current_resource.running(is_active?)
     end
 
-    current_resource.enabled(is_enabled?)
-    current_resource.masked(is_masked?)
-    current_resource.indirect(is_indirect?)
+    e, m, s, i = get_enabled_masked_static_indirect
+    current_resource.enabled(e)
+    current_resource.masked(m)
+    current_resource.static(s)
+    current_resource.indirect(i)
     current_resource
   end
 
@@ -145,19 +148,37 @@ class Chef::Provider::Service::Systemd < Chef::Provider::Service::Simple
   end
 
   def enable_service
-    if current_resource.masked || current_resource.indirect
-      logger.trace("#{new_resource} cannot be enabled: it is masked or indirect")
+    if current_resource.masked
+      logger.trace("#{new_resource} cannot be enabled: it is masked")
       return
     end
+    if current_resource.static
+      logger.trace("#{new_resource} cannot be enabled: it is static")
+      return
+    end
+    if current_resource.indirect
+      logger.trace("#{new_resource} cannot be enabled: it is indirect")
+      return
+    end
+
     options, args = get_systemctl_options_args
     shell_out!(systemctl_path, args, "enable", new_resource.service_name, **options)
   end
 
   def disable_service
-    if current_resource.masked || current_resource.indirect
-      logger.trace("#{new_resource} cannot be disabled: it is masked or indirect")
+    if current_resource.masked
+      logger.trace("#{new_resource} cannot be disabled: it is masked")
       return
     end
+    if current_resource.static
+      logger.trace("#{new_resource} cannot be disabled: it is static")
+      return
+    end
+    if current_resource.indirect
+      logger.trace("#{new_resource} cannot be disabled: it is indirect")
+      return
+    end
+
     options, args = get_systemctl_options_args
     shell_out!(systemctl_path, args, "disable", new_resource.service_name, **options)
   end
@@ -174,24 +195,14 @@ class Chef::Provider::Service::Systemd < Chef::Provider::Service::Simple
 
   def is_active?
     options, args = get_systemctl_options_args
-    shell_out(systemctl_path, args, "is-active", new_resource.service_name, "--quiet", **options).exitstatus == 0
+    shell_out!(systemctl_path, args, "is-active", new_resource.service_name, "--quiet", **options)
   end
 
-  def is_enabled?
-    options, args = get_systemctl_options_args
-    shell_out(systemctl_path, args, "is-enabled", new_resource.service_name, "--quiet", **options).exitstatus == 0
-  end
-
-  def is_indirect?
+  def get_enabled_masked_static_indirect
     options, args = get_systemctl_options_args
     s = shell_out(systemctl_path, args, "is-enabled", new_resource.service_name, **options)
-    s.stdout.include?("indirect")
-  end
-
-  def is_masked?
-    options, args = get_systemctl_options_args
-    s = shell_out(systemctl_path, args, "is-enabled", new_resource.service_name, **options)
-    s.exitstatus != 0 && s.stdout.include?("masked")
+    output = s.stdout
+    [s.exitstatus == 0, output.include?("masked"), output.include?("static"), output.include?("indirect")]
   end
 
   private
