@@ -131,7 +131,7 @@ class Chef
           else
             raise Chef::Exceptions::InvalidResourceSpecification,
               "The object `#{query_object.inspect}' is not valid for resource collection lookup. " +
-                "Use a String like `resource_type[resource_name]' or a Chef::Resource object"
+              "Use a String like `resource_type[resource_name]' or a Chef::Resource object"
         end
       end
 

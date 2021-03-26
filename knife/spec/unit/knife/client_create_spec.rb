@@ -123,7 +123,7 @@ describe Chef::Knife::ClientCreate do
 
         it "should write the private key to a file" do
           file = Tempfile.new
-          file_path = file.path 
+          file_path = file.path
           knife.config[:file] = file_path
           filehandle = double("Filehandle")
           expect(filehandle).to receive(:print).with("woot")

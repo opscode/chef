@@ -68,9 +68,9 @@ class Chef
           a.assertion { !(new_resource.revision =~ %r{^origin/}) }
           a.failure_message Chef::Exceptions::InvalidRemoteGitReference,
             "Deploying remote branches is not supported. " +
-              "Specify the remote branch as a local branch for " +
-              "the git repository you're deploying from " +
-              "(ie: '#{new_resource.revision.gsub("origin/", "")}' rather than '#{new_resource.revision}')."
+            "Specify the remote branch as a local branch for " +
+            "the git repository you're deploying from " +
+            "(ie: '#{new_resource.revision.gsub("origin/", "")}' rather than '#{new_resource.revision}')."
         end
 
         requirements.assert(:all_actions) do |a|
@@ -80,8 +80,8 @@ class Chef
           a.assertion { !target_revision.nil? }
           a.failure_message Chef::Exceptions::UnresolvableGitReference,
             "Unable to parse SHA reference for '#{new_resource.revision}' in repository '#{new_resource.repository}'. " +
-              "Verify your (case-sensitive) repository URL and revision.\n" +
-              "`git ls-remote '#{new_resource.repository}' '#{rev_search_pattern}'` output: #{@resolved_reference}"
+            "Verify your (case-sensitive) repository URL and revision.\n" +
+            "`git ls-remote '#{new_resource.repository}' '#{rev_search_pattern}'` output: #{@resolved_reference}"
         end
       end
 

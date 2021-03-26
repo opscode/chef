@@ -30,7 +30,7 @@ class Chef::EncryptedDataBagItem
       unless format_version.is_a?(Integer) && format_version >= Chef::Config[:data_bag_decrypt_minimum_version]
         raise UnacceptableEncryptedDataBagItemFormat,
           "The encrypted data bag item has format version `#{format_version}', " +
-            "but the config setting 'data_bag_decrypt_minimum_version' requires version `#{Chef::Config[:data_bag_decrypt_minimum_version]}'"
+          "but the config setting 'data_bag_decrypt_minimum_version' requires version `#{Chef::Config[:data_bag_decrypt_minimum_version]}'"
       end
     end
 

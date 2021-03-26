@@ -169,8 +169,8 @@ class Chef
         elsif module_name.nil?
           raise Exceptions::ValidationFailed,
             "#helpers requires either a module name or inline module code as a block.\n" +
-              "e.g.: helpers do; helper_code; end;\n" +
-              "OR: helpers(MyHelpersModule)"
+            "e.g.: helpers do; helper_code; end;\n" +
+            "OR: helpers(MyHelpersModule)"
         else
           raise Exceptions::ValidationFailed,
             "Argument to #helpers must be a module. You gave #{module_name.inspect} (#{module_name.class})"
