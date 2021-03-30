@@ -11,8 +11,10 @@ import yum
 import signal
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'simplejson'))
-try: import json
-except ImportError: import simplejson as json
+try:
+    import json
+except ImportError:
+    import simplejson as json
 import re
 from rpmUtils.miscutils import stringToVersion,compareEVR
 from rpmUtils.arch import getBaseArch, getArchList
@@ -34,12 +36,23 @@ if not hasattr(yum.packages.FakeRepository, 'compare_providers_priority'):
 
 base = None
 
+class MyYumBase(object):
+    def __init__(self):
+        self.base = yum.YumBase()
+
+    def __enter__(self):
+        return self.base
+
+    def __exit__(self, *args, **kwargs):
+        return self.base.closeRpmDB()
+
 def get_base():
     global base
     if base is None:
         base = yum.YumBase()
     setup_exit_handler()
     return base
+
 
 def versioncompare(versions):
     arch_list = getArchList()
@@ -51,9 +64,9 @@ def versioncompare(versions):
     # then we'll chop the arch component (assuming it *is* a valid one) from the first version string
     # so we're only comparing the evr portions.
     if (candidate_arch2 not in arch_list) and (candidate_arch1 in arch_list):
-       final_version1 = versions[0].replace("." + candidate_arch1,"")
+        final_version1 = versions[0].replace("." + candidate_arch1,"")
     else:
-       final_version1 = versions[0]
+        final_version1 = versions[0]
 
     final_version2 = versions[1]
 
@@ -65,11 +78,13 @@ def versioncompare(versions):
     outpipe.flush()
 
 def install_only_packages(name):
-    base = get_base()
-    if name in base.conf.installonlypkgs:
-      outpipe.write('True')
+    name_in_installonlypkgs = False
+    with MyYumBase() as base:
+        name_in_installonlypkgs = name in base.conf.installonlypkgs
+    if name_in_installonlypkgs:
+        outpipe.write('True')
     else:
-      outpipe.write('False')
+        outpipe.write('False')
     outpipe.flush()
 
 # python2.4 / centos5 compat
@@ -83,18 +98,18 @@ except NameError:
         return False
 
 def query(command):
-    base = get_base()
-
-    enabled_repos = base.repos.listEnabled()
+    with MyYumBase() as my_base:
+        enabled_repos = my_base.repos.listEnabled()
 
     # Handle any repocontrols passed in with our options
 
     if 'repos' in command:
-      for repo in command['repos']:
-        if 'enable' in repo:
-          base.repos.enableRepo(repo['enable'])
-        if 'disable' in repo:
-          base.repos.disableRepo(repo['disable'])
+        for repo in command['repos']:
+            with MyYumBase() as base:
+                if 'enable' in repo:
+                    base.repos.enableRepo(repo['enable'])
+                if 'disable' in repo:
+                    base.repos.disableRepo(repo['disable'])
 
     args = { 'name': command['provides'] }
     do_nevra = False
@@ -116,9 +131,11 @@ def query(command):
 
     obj = None
     if command['action'] == "whatinstalled":
-        obj = base.rpmdb
+        with MyYumBase() as base:
+            obj = base.rpmdb
     else:
-        obj = base.pkgSack
+        with MyYumBase() as base:
+            obj = base.pkgSack
 
     # if we are given "name == 1.2.3" then we must use the getProvides() API.
     #   - this means that we ignore arch and version properties when given prco tuples as a package_name
@@ -150,20 +167,23 @@ def query(command):
         outpipe.flush()
     else:
         # make sure we picked the package with the highest version
-        pkgs = base.bestPackagesFromList(pkgs,single_name=True)
-        pkg = pkgs.pop(0)
+        pkg = ""
+        with MyYumBase() as base:
+            pkgs = base.bestPackagesFromList(pkgs,single_name=True)
+            pkg = pkgs.pop(0)
         outpipe.write("%(n)s %(e)s:%(v)s-%(r)s %(a)s\n" % { 'n': pkg.name, 'e': pkg.epoch, 'v': pkg.version, 'r': pkg.release, 'a': pkg.arch })
         outpipe.flush()
 
     # Reset any repos we were passed in enablerepo/disablerepo to the original state in enabled_repos
     if 'repos' in command:
       for repo in command['repos']:
-        if 'enable' in repo:
-          if base.repos.getRepo(repo['enable']) not in enabled_repos:
-            base.repos.disableRepo(repo['enable'])
-        if 'disable' in repo:
-          if base.repos.getRepo(repo['disable']) in enabled_repos:
-            base.repos.enableRepo(repo['disable'])
+        with MyYumBase() as base:
+            if 'enable' in repo:
+                if base.repos.getRepo(repo['enable']) not in enabled_repos:
+                    base.repos.disableRepo(repo['enable'])
+            if 'disable' in repo:
+                if base.repos.getRepo(repo['disable']) in enabled_repos:
+                    base.repos.enableRepo(repo['disable'])
 
 # the design of this helper is that it should try to be 'brittle' and fail hard and exit in order
 # to keep process tables clean.  additional error handling should probably be added to the retry loop
@@ -202,7 +222,7 @@ try:
 
         try:
             command = json.loads(line)
-        except ValueError, e:
+        except ValueError:
             raise RuntimeError("bad json parse")
 
         if command['action'] == "whatinstalled":
@@ -212,7 +232,7 @@ try:
         elif command['action'] == "versioncompare":
             versioncompare(command['versions'])
         elif command['action'] == "installonlypkgs":
-             install_only_packages(command['package'])
+            install_only_packages(command['package'])
         else:
             raise RuntimeError("bad command")
 finally:
