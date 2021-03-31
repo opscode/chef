@@ -166,6 +166,20 @@ describe Chef::Knife::ClientCreate do
           expect(client.validator).to be_truthy
         end
       end
+
+      describe "with -f or --file when dir or file is not writable" do
+        it "when the directory is not writable" do
+          knife.config[:file] = "example/client1.pem"
+          expect(knife.ui).to receive(:fatal).with("Dir example is not writable. Check permissions.")
+          expect { knife.run }.to raise_error(SystemExit)
+        end
+
+        it "when the file is not writable" do
+          knife.config[:file] = "test/client1.pem"
+          expect(knife.ui).to receive(:fatal).with("File test/client1.pem is not writable. Check permissions.")
+          expect { knife.run }.to raise_error(SystemExit)
+        end
+      end
     end
   end
 end

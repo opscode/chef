@@ -84,8 +84,14 @@ class Chef
         # Check the file before creating the client so the api is more transactional.
         if config[:file]
           file = config[:file]
-          unless File.exist?(file) ? File.writable?(file) : File.writable?(File.dirname(file))
-            ui.fatal "File #{config[:file]} is not writable.  Check permissions."
+
+          unless File.writable?(File.dirname(file))
+            ui.fatal "Dir #{File.dirname(file)} is not writable. Check permissions."
+            exit 1
+          end
+
+          unless File.writable?(file)
+            ui.fatal "File #{config[:file]} is not writable. Check permissions."
             exit 1
           end
         end
