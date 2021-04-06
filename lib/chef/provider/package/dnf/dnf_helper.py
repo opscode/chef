@@ -38,6 +38,7 @@ class AutoCloseDNFBase(object):
 
     def __enter__(self):
         self.base = dnf.Base()
+        return self.base
 
     def __exit__(self, *args, **kwargs):
         if self.base is not None:
@@ -52,6 +53,11 @@ class DNFWrapper(object):
     _repos_loaded = False
 
     def __init__(self, base):
+        self.base = base
+        signal.signal(signal.SIGINT, self.exit_handler)
+        signal.signal(signal.SIGHUP, self.exit_handler)
+        signal.signal(signal.SIGPIPE, self.exit_handler)
+        signal.signal(signal.SIGQUIT, self.exit_handler)
 
         if len(sys.argv) < 3:
             self.inpipe = sys.stdin
@@ -59,13 +65,6 @@ class DNFWrapper(object):
         else:
             self.inpipe = os.fdopen(int(sys.argv[1]), "r")
             self.outpipe = os.fdopen(int(sys.argv[2]), "w")
-
-        self.base = base
-
-        signal.signal(signal.SIGINT, self.exit_handler)
-        signal.signal(signal.SIGHUP, self.exit_handler)
-        signal.signal(signal.SIGPIPE, self.exit_handler)
-        signal.signal(signal.SIGQUIT, self.exit_handler)
 
         self.command = {}
 
@@ -167,7 +166,6 @@ class DNFWrapper(object):
         self.sack.load_system_repo(build_cache=True)
 
     def versioncompare(self, versions):
-        sack = self.sack  # This maybe ununsed, but the size effects might be desired
         if (versions[0] is None) or (versions[1] is None):
             self.outpipe.write('0\n')
             self.outpipe.flush()
