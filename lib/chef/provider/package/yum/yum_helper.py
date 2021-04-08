@@ -5,16 +5,17 @@ import sys
 import yum
 import signal
 import os
+import re
+from rpmUtils.miscutils import stringToVersion, compareEVR
+from rpmUtils.arch import getBaseArch, getArchList
+from yum.misc import string_to_prco_tuple
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'simplejson'))
+
 try:
     import json
 except ImportError:
     import simplejson as json
-import re
-from rpmUtils.miscutils import stringToVersion,compareEVR
-from rpmUtils.arch import getBaseArch, getArchList
-
-from yum.misc import string_to_prco_tuple
 
 # hack to work around https://github.com/chef/chef/issues/7126
 # see https://bugzilla.redhat.com/show_bug.cgi?id=1396248
@@ -31,7 +32,7 @@ class MyYumBase(object):
 
     def __exit__(self, *args, **kwargs):
         if self.base is not None:
-            return self.base.closeRpmDB()
+            self.base.closeRpmDB()
         self.base = None
 
 
@@ -54,9 +55,10 @@ class YumWrapper(object):
             self.inpipe = os.fdopen(int(sys.argv[1]), "r")
             self.outpipe = os.fdopen(int(sys.argv[2]), "w")
 
-    # the design of this helper is that it should try to be 'brittle' and fail hard and exit in order
-    # to keep process tables clean.  additional error handling should probably be added to the retry loop
-    # on the ruby side.
+    # the design of this helper is that it should try to be 'brittle' and fail
+    # hard and exit in order to keep process tables clean.  additional error
+    # handling should probably be added to the retry loop on the ruby side.
+
     def exit_handler(self, signal, frame):
         if self.base is not None:
             self.base.closeRpmDB()
@@ -67,12 +69,13 @@ class YumWrapper(object):
         candidate_arch1 = versions[0].split(".")[-1]
         candidate_arch2 = versions[1].split(".")[-1]
 
-        # The first version number passed to this method is always a valid nevra (the current version)
-        # If the second version number looks like it does not contain a valid arch
-        # then we'll chop the arch component (assuming it *is* a valid one) from the first version string
-        # so we're only comparing the evr portions.
+        # The first version number passed to this method is always a valid
+        # nevra (the current version) If the second version number looks like
+        # it does not contain a valid arch then we'll chop the arch component
+        # (assuming it *is* a valid one) from the first version string so we're
+        # only comparing the evr portions.
         if (candidate_arch2 not in arch_list) and (candidate_arch1 in arch_list):
-            final_version1 = versions[0].replace("." + candidate_arch1,"")
+            final_version1 = versions[0].replace("." + candidate_arch1, "")
         else:
             final_version1 = versions[0]
 
@@ -162,7 +165,7 @@ class YumWrapper(object):
             # make sure we picked the package with the highest version
             pkgs = self.base.bestPackagesFromList(pkgs, single_name=True)
             pkg = pkgs.pop(0)
-            self.outpipe.write("%(n)s %(e)s:%(v)s-%(r)s %(a)s\n" % { 'n': pkg.name, 'e': pkg.epoch, 'v': pkg.version, 'r': pkg.release, 'a': pkg.arch })
+            self.outpipe.write("%(n)s %(e)s:%(v)s-%(r)s %(a)s\n" % {'n': pkg.name, 'e': pkg.epoch, 'v': pkg.version, 'r': pkg.release, 'a': pkg.arch})
             self.outpipe.flush()
 
         # Reset any repos we were passed in enablerepo/disablerepo to the original state in enabled_repos
@@ -174,7 +177,6 @@ class YumWrapper(object):
                 if 'disable' in repo:
                     if self.base.repos.getRepo(repo['disable']) in enabled_repos:
                         self.base.repos.enableRepo(repo['disable'])
-
 
     def yum_input_loop(self):
         while 1:

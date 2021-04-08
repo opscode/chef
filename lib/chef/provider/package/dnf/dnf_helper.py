@@ -118,9 +118,11 @@ class DNFWrapper(object):
             q = q.available()
 
         if 'epoch' in command:
-            # We assume that any glob is "*" so just omit the filter since the dnf libraries have no
-            # epoch__glob filter.  That means "?" wildcards in epochs will fail.  The workaround is to
-            # not use the version filter here but to put the version with all the globs in the package name.
+            # We assume that any glob is "*" so just omit the filter since the
+            # dnf libraries have no epoch__glob filter.  That means "?"
+            # wildcards in epochs will fail.  The workaround is to not use the
+            # version filter here but to put the version with all the globs in
+            # the package name.
             if not dnf.util.is_glob_pattern(command['epoch']):
                 q = q.filterm(epoch=int(command['epoch']))
         if 'version' in command:
@@ -174,9 +176,9 @@ class DNFWrapper(object):
             self.outpipe.write('{}\n'.format(evr_comparison))
             self.outpipe.flush()
 
-    # the design of this helper is that it should try to be 'brittle' and fail hard and exit in order
-    # to keep process tables clean.  additional error handling should probably be added to the retry loop
-    # on the ruby side.
+    # the design of this helper is that it should try to be 'brittle' and fail
+    # hard and exit in order to keep process tables clean.  additional error
+    # handling should probably be added to the retry loop on the ruby side.
     def exit_handler(self, signal, frame):
         if self.base is not None:
             self.base.close()
