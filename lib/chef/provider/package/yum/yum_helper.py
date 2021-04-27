@@ -212,3 +212,4 @@ if __name__ == '__main__':
     with MyYumBase() as base:
         yum_wrapper = YumWrapper(base)
         yum_wrapper.yum_input_loop()
+
