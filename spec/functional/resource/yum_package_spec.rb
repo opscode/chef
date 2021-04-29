@@ -130,6 +130,109 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
       end
     end
 
+    context "expanded idempotency checks with version variants" do
+      # 0:1.10, 0:1.10-1, 0:1*-1 don't work on yum/el6
+      %w{1.10 1* 1.10-1 1*-1 1.10-* 1*-* 0:1* *:1.10-* *:1*-*}.each do |vstring|
+        it "installs the rpm when #{vstring} is in the package_name" do
+          flush_cache
+          yum_package.package_name("chef_rpm-#{vstring}")
+          yum_package.run_action(:install)
+          expect(yum_package.updated_by_last_action?).to be true
+        end
+
+        it "is idempotent when #{vstring} is in the package_name" do
+          preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm-#{vstring}")
+          yum_package.run_action(:install)
+          expect(yum_package.updated_by_last_action?).to be false
+        end
+
+        it "installs the rpm when #{vstring} is in the version property" do
+          flush_cache
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:install)
+          expect(yum_package.updated_by_last_action?).to be true
+        end
+
+        it "is idempotent when #{vstring} is in the version property" do
+          preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:install)
+          expect(yum_package.updated_by_last_action?).to be false
+        end
+
+        it "upgrades the rpm when #{vstring} is in the package_name" do
+          flush_cache
+          yum_package.package_name("chef_rpm-#{vstring}")
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be true
+        end
+
+        it "is idempotent when #{vstring} is in the package_name" do
+          preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm-#{vstring}")
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be false
+        end
+
+        it "upgrades the rpm when #{vstring} is in the version property" do
+          flush_cache
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be true
+        end
+
+        it "is idempotent when #{vstring} is in the version property" do
+          preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be false
+        end
+      end
+
+      # 0:1.2 0:1.2-1 0:1*-1 don't work on yum/el6
+      %w{1.2 1* 1.2-1 1*-1 1.2-* 1*-* 0:1* *:1.2-* *:1*-*}.each do |vstring|
+        it "is idempotent when #{vstring} is in the version property and there is a candidate version" do
+          preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:install)
+          expect(yum_package.updated_by_last_action?).to be false
+          expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        end
+      end
+
+      # 0:1.2, 0:1.2-1, 0:1*-1 don't work on yum/el6
+      %w{1.2 1.2-1 1.2-* *:1.2-*}.each do |vstring|
+        it "is idempotent when #{vstring} is in the version property on upgrade and it doesn't match the candidate version" do
+          preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be false
+          expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        end
+      end
+
+      # 0:1.2, 0:1.2-1, 0:1*-1 don't work on yum/el6
+      %w{1* 1*-1 1*-* 0:1* *:1*-*}.each do |vstring|
+        it "upgrades when #{vstring} is in the version property on upgrade and it matches the candidate version" do
+          preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+          yum_package.package_name("chef_rpm")
+          yum_package.version(vstring)
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be true
+          expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+          yum_package.run_action(:upgrade)
+          expect(yum_package.updated_by_last_action?).to be false
+        end
+      end
+    end
+
     context "with versions or globs in the name" do
       it "works with a version" do
         flush_cache
@@ -137,6 +240,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "works with an older version" do
@@ -145,6 +250,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "works with an evra" do
@@ -153,6 +260,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "works with version and release" do
@@ -161,6 +270,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "works with a version glob" do
@@ -169,6 +280,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "works with a name glob + version glob" do
@@ -177,6 +290,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "upgrades when the installed version does not match the version string" do
@@ -185,6 +300,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "downgrades when the installed version is higher than the package_name version" do
@@ -194,6 +311,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -206,18 +325,19 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "matches with a glob" do
-        # we are unlikely to ever fix this.  if you've found this comment you should use e.g. "tcpdump-4*" in
-        # the name field rather than trying to use a name of "tcpdump" and a version of "4*".
-        pending "this does not work, is not easily supported by the underlying yum libraries, but does work in the new dnf_package provider"
         flush_cache
         yum_package.package_name("chef_rpm")
         yum_package.version("1*")
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "matches the vr" do
@@ -227,6 +347,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "matches the evr" do
@@ -236,26 +358,30 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "matches with a vr glob" do
-        pending "doesn't work on command line either"
         flush_cache
         yum_package.package_name("chef_rpm")
         yum_package.version("1.10-1*")
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "matches with an evr glob" do
-        pending "doesn't work on command line either"
         flush_cache
         yum_package.package_name("chef_rpm")
         yum_package.version("0:1.10-1*")
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -269,6 +395,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -279,6 +407,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs with 32-bit arch in the name" do
@@ -287,6 +417,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.i686$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs with 64-bit arch in the property" do
@@ -296,6 +428,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs with 32-bit arch in the property" do
@@ -305,6 +439,30 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.i686$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "installs when the 32-bit arch is in the name and the version is in the property" do
+        flush_cache
+        yum_package.package_name("chef_rpm.i686")
+        yum_package.version("1.10-1")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.i686$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "installs when the 64-bit arch is in the name and the version is in the property" do
+        flush_cache
+        yum_package.package_name("chef_rpm.#{pkg_arch}")
+        yum_package.version("1.10-1")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -315,6 +473,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "when it is met, it does nothing" do
@@ -333,12 +493,14 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
       end
 
-      it "with nothing intalled, it installs the latest version" do
+      it "with nothing installed, it installs the latest version" do
         flush_cache
         yum_package.package_name("chef_rpm > 1.2")
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "when it is not met by an installed rpm, it upgrades" do
@@ -347,6 +509,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with an equality constraint, when it is not met by an installed rpm, it upgrades" do
@@ -355,6 +519,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with an equality constraint, when it is met by an installed rpm, it does nothing" do
@@ -392,6 +558,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a less than constraint, when the install version matches, it does nothing" do
@@ -410,6 +578,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -436,6 +606,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs the package when the name is a path to a file" do
@@ -444,6 +616,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "downgrade on a local file is ignored when allow_downgrade is false" do
@@ -464,6 +638,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "does not downgrade the package with :install" do
@@ -498,15 +674,6 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be false
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
       end
-
-      it "is idempotent when the package is already installed and there is a version string with arch" do
-        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
-        yum_package.version "1.2-1.#{pkg_arch}"
-        yum_package.package_name("#{CHEF_SPEC_ASSETS}/yumrepo/chef_rpm-1.2-1.#{pkg_arch}.rpm")
-        yum_package.run_action(:install)
-        expect(yum_package.updated_by_last_action?).to be false
-        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
-      end
     end
 
     context "with no available version" do
@@ -525,6 +692,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -536,6 +705,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "does nothing if both are installed" do
@@ -553,6 +724,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs the first rpm if the second is installed" do
@@ -562,6 +735,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       # unlikely to work consistently correct, okay to deprecate the arch-array in favor of the arch in the name
@@ -573,6 +748,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       # unlikely to work consistently correct, okay to deprecate the arch-array in favor of the arch in the name
@@ -584,6 +761,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       # unlikely to work consistently correct, okay to deprecate the arch-array in favor of the arch in the name
@@ -595,6 +774,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.#{pkg_arch}$/)
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match(/^chef_rpm-1.10-1.i686$/)
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       # unlikely to work consistently correct, okay to deprecate the arch-array in favor of the arch in the name
@@ -620,6 +801,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "should work to enable a disabled repo" do
@@ -631,6 +814,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "when an idempotent install action is run, does not leave repos disabled" do
@@ -651,6 +836,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:install)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:install)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
   end
@@ -666,6 +853,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "installs the package when the name is a path to a file" do
@@ -674,6 +863,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "downgrades the package when allow_downgrade is true" do
@@ -683,6 +874,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "upgrades the package" do
@@ -691,6 +884,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "is idempotent when the package is already installed" do
@@ -719,33 +914,108 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
     context "version pinning" do
-      it "with an equality pin in the name it upgrades a prior package" do
+      it "with a full version pin it installs a later package" do
+        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+        yum_package.package_name("chef_rpm")
+        yum_package.version("1.10-1")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a full version pin in the name it downgrades the package" do
+        preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+        yum_package.allow_downgrade true
+        yum_package.package_name("chef_rpm")
+        yum_package.version("1.2-1")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a partial (no release) version pin it installs a later package" do
+        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+        yum_package.package_name("chef_rpm")
+        yum_package.version("1.10")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a partial (no release) version pin in the name it downgrades the package" do
+        preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+        yum_package.allow_downgrade true
+        yum_package.package_name("chef_rpm")
+        yum_package.version("1.2")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a full version pin it installs a later package" do
+        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+        yum_package.package_name("chef_rpm-1.10-1")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a full version pin in the name it downgrades the package" do
+        preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
+        yum_package.allow_downgrade true
+        yum_package.package_name("chef_rpm-1.2-1")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a partial (no release) version pin it installs a later package" do
         preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
         yum_package.package_name("chef_rpm-1.10")
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
-      end
-
-      it "with a prco equality pin in the name it upgrades a prior package" do
-        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
-        yum_package.package_name("chef_rpm == 1.10")
         yum_package.run_action(:upgrade)
-        expect(yum_package.updated_by_last_action?).to be true
-        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
-      it "with an equality pin in the name it downgrades a later package" do
+      it "with a partial (no release) version pin in the name it downgrades the package" do
         preinstall("chef_rpm-1.10-1.#{pkg_arch}.rpm")
         yum_package.allow_downgrade true
         yum_package.package_name("chef_rpm-1.2")
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
+      end
+
+      it "with a prco equality pin in the name it upgrades a prior package" do
+        preinstall("chef_rpm-1.2-1.#{pkg_arch}.rpm")
+        yum_package.package_name("chef_rpm = 1.10")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be true
+        expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a prco equality pin in the name it downgrades a later package" do
@@ -755,6 +1025,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a > pin in the name and no rpm installed it installs" do
@@ -763,6 +1035,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a < pin in the name and no rpm installed it installs" do
@@ -771,6 +1045,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a > pin in the name and matching rpm installed it does nothing" do
@@ -795,6 +1071,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "with a < pin in the name and non-matching rpm installed it downgrades" do
@@ -804,6 +1082,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:upgrade)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.2-1.#{pkg_arch}$")
+        yum_package.run_action(:upgrade)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
   end
@@ -840,6 +1120,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "removes the package if the i686 package is installed", :intel_64bit do
@@ -848,6 +1130,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "removes the package if the prior version i686 package is installed", :intel_64bit do
@@ -856,6 +1140,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -873,6 +1159,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "removes the package if the prior version package is installed" do
@@ -880,6 +1168,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
 
       it "does nothing if the i686 package is installed" do
@@ -904,6 +1194,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^chef_rpm-1.10-1.#{pkg_arch}$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
 
@@ -914,6 +1206,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
         yum_package.run_action(:remove)
         expect(yum_package.updated_by_last_action?).to be true
         expect(shell_out("rpm -q --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' chef_rpm").stdout.chomp).to match("^package chef_rpm is not installed$")
+        yum_package.run_action(:remove)
+        expect(yum_package.updated_by_last_action?).to be false
       end
     end
   end
@@ -933,6 +1227,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
       yum_package.run_action(:lock)
       expect(yum_package.updated_by_last_action?).to be true
       expect(shell_out("yum versionlock list").stdout.chomp).to match("^0:chef_rpm-")
+      yum_package.run_action(:lock)
+      expect(yum_package.updated_by_last_action?).to be false
     end
 
     it "does not lock if its already locked" do
@@ -951,6 +1247,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
       yum_package.run_action(:unlock)
       expect(yum_package.updated_by_last_action?).to be true
       expect(shell_out("yum versionlock list").stdout.chomp).not_to match("^0:chef_rpm-")
+      yum_package.run_action(:unlock)
+      expect(yum_package.updated_by_last_action?).to be false
     end
 
     it "does not unlock an already locked rpm" do
@@ -967,6 +1265,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
       yum_package.run_action(:lock)
       expect(yum_package.updated_by_last_action?).to be true
       expect(shell_out("yum versionlock list").stdout.chomp).to match("^0:chef_rpm-")
+      yum_package.run_action(:lock)
+      expect(yum_package.updated_by_last_action?).to be false
     end
 
     it "check that we can unlock based on provides" do
@@ -976,6 +1276,8 @@ describe Chef::Resource::YumPackage, :requires_root, external: exclude_test do
       yum_package.run_action(:unlock)
       expect(yum_package.updated_by_last_action?).to be true
       expect(shell_out("yum versionlock list").stdout.chomp).not_to match("^0:chef_rpm-")
+      yum_package.run_action(:unlock)
+      expect(yum_package.updated_by_last_action?).to be false
     end
   end
 end

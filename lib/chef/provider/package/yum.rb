@@ -36,6 +36,7 @@ class Chef
         allow_nils
         use_multipackage_api
         use_package_name_for_source
+        use_magic_version
 
         provides :package, platform_family: "fedora_derived"
 
@@ -64,6 +65,16 @@ class Chef
           current_resource
         end
 
+        def load_after_resource
+          # force the installed version array to repopulate
+          @current_version = []
+          @after_resource = Chef::Resource::DnfPackage.new(new_resource.name)
+          after_resource.package_name(new_resource.package_name)
+          after_resource.version(get_current_versions)
+
+          after_resource
+        end
+
         def define_resource_requirements
           requirements.assert(:install, :upgrade, :remove, :purge) do |a|
             a.assertion { !new_resource.source || ::File.exist?(new_resource.source) }
@@ -80,9 +91,15 @@ class Chef
           end
         end
 
+        def magic_version
+          package_name_array.each_with_index.map do |pkg, i|
+            magical_version(i).version_with_arch
+          end
+        end
+
         def get_current_versions
           package_name_array.each_with_index.map do |pkg, i|
-            installed_version(i).version_with_arch
+            current_version(i).version_with_arch
           end
         end
 
@@ -127,7 +144,7 @@ class Chef
         alias upgrade_package install_package
 
         def remove_package(names, versions)
-          resolved_names = names.each_with_index.map { |name, i| installed_version(i).to_s unless name.nil? }
+          resolved_names = names.each_with_index.map { |name, i| magical_version(i).to_s unless name.nil? }
           yum(options, "-y", "remove", resolved_names)
           flushcache
         end
@@ -157,10 +174,10 @@ class Chef
         def resolved_package_lock_names(names)
           names.each_with_index.map do |name, i|
             unless name.nil?
-              if installed_version(i).version.nil?
+              if magical_version(i).version.nil?
                 available_version(i).name
               else
-                installed_version(i).name
+                magical_version(i).name
               end
             end
           end
@@ -226,15 +243,25 @@ class Chef
           @available_version[index]
         end
 
+        def magical_version(index)
+          @magical_version ||= []
+          @magical_version[index] ||= if new_resource.source
+                                        python_helper.package_query(:whatinstalled, available_version(index).name, version: safe_version_array[index], arch: safe_arch_array[index], options: options)
+                                      else
+                                        python_helper.package_query(:whatinstalled, package_name_array[index], version: safe_version_array[index], arch: safe_arch_array[index], options: options)
+                                      end
+          @magical_version[index]
+        end
+
         # @return Array<Version>
-        def installed_version(index)
-          @installed_version ||= []
-          @installed_version[index] ||= if new_resource.source
-                                          python_helper.package_query(:whatinstalled, available_version(index).name, arch: safe_arch_array[index], options: options)
-                                        else
-                                          python_helper.package_query(:whatinstalled, package_name_array[index], arch: safe_arch_array[index], options: options)
-                                        end
-          @installed_version[index]
+        def current_version(index)
+          @current_version ||= []
+          @current_version[index] ||= if new_resource.source
+                                        python_helper.package_query(:whatinstalled, available_version(index).name, arch: safe_arch_array[index], options: options)
+                                      else
+                                        python_helper.package_query(:whatinstalled, package_name_array[index], arch: safe_arch_array[index], options: options)
+                                      end
+          @current_version[index]
         end
 
         # cache flushing is accomplished by simply restarting the python helper.  this produces a roughly
