@@ -30,15 +30,21 @@ describe Chef::Knife::UserList do
     }
   end
 
+  let(:users1) do
+    [{ "user" => { "username" => "user3" } },
+     { "user" => { "username" => "user4" } },
+     { "user" => { "username" => "user5" } }]
+  end
+
   before :each do
     @rest = double("Chef::ServerAPI")
     allow(Chef::ServerAPI).to receive(:new).and_return(@rest)
-    allow(@rest).to receive(:get).with("users").and_return(users)
   end
 
   describe "with no arguments" do
     it "lists all non users" do
-      expect(knife.ui).to receive(:output).with(%w{user1 user2})
+      allow(@rest).to receive(:get).with("users").and_return(users1)
+      expect(knife.ui).to receive(:output).with(%w{user3 user4 user5})
       knife.run
     end
 
@@ -47,26 +53,29 @@ describe Chef::Knife::UserList do
   describe "with all_users argument" do
     before do
       knife.config[:all_users] = true
+      allow(@rest).to receive(:get).with("users").and_return(users1)
     end
 
     it "lists all users including hidden users" do
-      expect(knife.ui).to receive(:output).with(%w{user1 user2})
+      expect(knife.ui).to receive(:output).with(%w{user3 user4 user5})
       knife.run
     end
   end
 
-  it "lists the users" do
-    expect(knife).to receive(:format_list_for_display)
-    knife.run
-  end
-
-  describe "with options with_uri argument" do
+  describe "with options with_uri argument and global" do
     before do
       knife.config[:with_uri] = true
+      knife.config[:global] = true
+      allow(@rest).to receive(:get).with("users").and_return(users)
     end
 
     it "lists all users including hidden users" do
       expect(knife.ui).to receive(:output).with(users)
+      knife.run
+    end
+
+    it "lists the users" do
+      expect(knife).to receive(:format_list_for_display)
       knife.run
     end
   end
