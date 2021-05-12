@@ -10,9 +10,9 @@ describe Chef::Provider::Mount::Linux do
 
   let(:new_resource) do
     new_resource = Chef::Resource::Mount.new("/tmp/foo")
-    new_resource.device      "/dev/sdz1"
+    new_resource.device "/dev/sdz1"
     new_resource.device_type :device
-    new_resource.fstype      "ext3"
+    new_resource.fstype "ext3"
     new_resource.supports remount: false
     new_resource
   end
@@ -32,6 +32,7 @@ describe Chef::Provider::Mount::Linux do
   context "to see if the volume is mounted" do
 
     it "should set mounted true if the mount point is found in the mounts list" do
+      allow(provider).to receive(:shell_out!).with("losetup --list").and_return(double(stdout: "/tmp/foo"))
       allow(provider).to receive(:shell_out!).and_return(double(stdout: "/tmp/foo /dev/sdz1 type ext3 (rw)\n"))
       provider.load_current_resource
       expect(provider.current_resource.mounted).to be_truthy
@@ -99,6 +100,18 @@ describe Chef::Provider::Mount::Linux do
       mount = "/tmp/foo //192.168.11.102/Share/backup[/backup] cifs rw\n"
       mount << "#{new_resource.mount_point} #{new_resource.device} type #{new_resource.fstype}\n"
       allow(provider).to receive(:shell_out!).and_return(double(stdout: mount))
+      provider.load_current_resource
+      expect(provider.current_resource.mounted).to be_truthy
+    end
+  end
+
+  context "to check if loop resource is mounted" do
+    it "should set mounted true in case of loop resource" do
+      new_resource.options "loop"
+      mount = "/tmp/foo /dev/loop16 iso660 cifs ro\n"
+      losetup = "/dev/loop16 0 0 1 1 /dev/sdz1 \n"
+      allow(provider).to receive(:shell_out!).with("findmnt -rn").and_return(double(stdout: mount))
+      allow(provider).to receive(:shell_out!).with("losetup -a").and_return(double(stdout: losetup))
       provider.load_current_resource
       expect(provider.current_resource.mounted).to be_truthy
     end

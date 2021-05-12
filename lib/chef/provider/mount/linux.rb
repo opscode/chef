@@ -32,12 +32,14 @@ class Chef
 
         def mounted?
           mounted = false
-
           real_mount_point = if ::File.exists? @new_resource.mount_point
                                ::File.realpath(@new_resource.mount_point)
                              else
                                @new_resource.mount_point
                              end
+
+          # get the output of losetup command to check loop mount points
+          loop_mount_points = shell_out!("losetup -a").stdout
 
           shell_out!("findmnt -rn").stdout.each_line do |line|
             case line
@@ -45,6 +47,14 @@ class Chef
             when /\A#{Regexp.escape(real_mount_point)}\s+#{device_mount_regex}\s/
               mounted = true
               logger.trace("Special device #{device_logstring} mounted as #{real_mount_point}")
+            # Permalink for loop type devices mount points https://rubular.com/r/a0bS4p2RvXsGxx
+            when %r{\A#{Regexp.escape(real_mount_point)}\s+\/dev\/loop+[0-9]+\s}
+              loop_mount_points.each_line do |mount_point|
+                if mount_point.include? device_real
+                  mounted = true
+                  break
+                end
+              end
             # Permalink for multiple devices mounted to the same mount point(i.e. '/proc') https://rubular.com/r/a356yzspU7N9TY
             when %r{\A#{Regexp.escape(real_mount_point)}\s+([/\w])+\s}
               mounted = false
