@@ -46,7 +46,7 @@ Vagrantfile
 # Kitchen Tests lock files and chef data
 kitchen-tests/nodes/*
 kitchen-tests/Gemfile.lock
-kitchen-tests/Berksfile.lock
+kitchen-tests/Policyfile.lock.json
 
 # Temporary files present during spec runs
 spec/data/test-dir

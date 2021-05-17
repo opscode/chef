@@ -152,5 +152,3 @@ platforms:
 
 suites:
   - name: end-to-end
-    run_list:
-      - recipe[end_to_end::default]
