@@ -217,6 +217,11 @@ class Chef
           end
         end
 
+        def device_sub_space_regex
+          # To escape space character in any device network device name
+          device_mount_regex.gsub(" ", "\\x20")
+        end
+
         def device_mount_regex
           if network_device?
             # ignore trailing slash
