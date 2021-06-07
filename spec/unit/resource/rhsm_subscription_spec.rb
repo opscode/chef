@@ -27,7 +27,7 @@ describe Chef::Resource::RhsmSubscription do
   let(:provider) { resource.provider_for_action(resource.action) }
 
   let(:flush_cache_package_name) { "rhsm_subscription-#{new_resource.pool_id}-flush_cache" }
-  let(:flush_cache_package_resource) { run_context.resource_collection.find(:package => flush_cache_package_name) }
+  let(:flush_cache_package_resource) { run_context.resource_collection.find(package: flush_cache_package_name) }
 
   it "has a resource name of :rhsm_subscription" do
     expect(resource.resource_name).to eql(:rhsm_subscription)
