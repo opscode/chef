@@ -26,9 +26,6 @@ describe Chef::Resource::RhsmSubscription do
   let(:resource) { Chef::Resource::RhsmSubscription.new(pool_id, run_context) }
   let(:provider) { resource.provider_for_action(resource.action) }
 
-  # TODO: Remove me!
-  # let(:recipe) { Chef::Recipe.new("hjk", "test", run_context) }
-
   let(:flush_cache_package_name) { "rhsm_subscription-#{new_resource.pool_id}-flush_cache" }
   let(:flush_cache_package_resource) { run_context.resource_collection.find(:package => flush_cache_package_name) }
 
