@@ -26,18 +26,11 @@ describe Chef::Resource::RhsmSubscription do
   let(:resource) { Chef::Resource::RhsmSubscription.new(pool_id, run_context) }
   let(:provider) { resource.provider_for_action(resource.action) }
 
-  let(:recipe) { Chef::Recipe.new("hjk", "test", run_context) }
+  # TODO: Remove me!
+  # let(:recipe) { Chef::Recipe.new("hjk", "test", run_context) }
 
   let(:flush_cache_package_name) { "rhsm_subscription-#{new_resource.pool_id}-flush_cache" }
   let(:flush_cache_package_resource) { run_context.resource_collection.find(:package => flush_cache_package_name) }
-
-  before do
-    dummy = Mixlib::ShellOut.new
-    allow_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}").and_return(dummy)
-    allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription",)
-    allow(dummy).to receive(:exitstatus).and_return(0)
-    allow(dummy).to receive(:error?).and_return(false)
-  end
 
   it "has a resource name of :rhsm_subscription" do
     expect(resource.resource_name).to eql(:rhsm_subscription)
@@ -57,6 +50,14 @@ describe Chef::Resource::RhsmSubscription do
   end
 
   describe "#action_attach", :rhel do
+    before do
+      dummy = Mixlib::ShellOut.new
+      allow_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}").and_return(dummy)
+      allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription",)
+      allow(dummy).to receive(:exitstatus).and_return(0)
+      allow(dummy).to receive(:error?).and_return(false)
+    end
+
     context "when already attached to pool" do
       before do
         allow(provider).to receive(:subscription_attached?).with(resource.pool_id).and_return(true)
@@ -74,13 +75,13 @@ describe Chef::Resource::RhsmSubscription do
       end
 
       it "attaches to pool" do
-        expect(resource).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}")
+        expect(provider).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}")
         resource.run_action(:attach)
       end
 
       it "flushes yum cache" do
-        expect(provider).to receive(:flush_cache)
         resource.run_action(:attach)
+        expect(flush_cache_package_resource.performed_actions).to eq([:flush_cache])
       end
     end
   end
