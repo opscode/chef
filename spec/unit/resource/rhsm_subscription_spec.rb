@@ -26,7 +26,7 @@ describe Chef::Resource::RhsmSubscription do
   let(:resource) { Chef::Resource::RhsmSubscription.new(pool_id, run_context) }
   let(:provider) { resource.provider_for_action(resource.action) }
 
-  let(:flush_cache_package_name) { "rhsm_subscription-#{new_resource.pool_id}-flush_cache" }
+  let(:flush_cache_package_name) { "rhsm_subscription-#{resource.pool_id}-flush_cache" }
   let(:flush_cache_package_resource) { run_context.resource_collection.find(package: flush_cache_package_name) }
 
   it "has a resource name of :rhsm_subscription" do
@@ -46,13 +46,18 @@ describe Chef::Resource::RhsmSubscription do
     expect { resource.action :remove }.not_to raise_error
   end
 
-  describe "#action_attach", :rhel do
+  describe "#action_attach" do
     before do
       dummy = Mixlib::ShellOut.new
       allow_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}").and_return(dummy)
       allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription")
       allow(dummy).to receive(:exitstatus).and_return(0)
       allow(dummy).to receive(:error?).and_return(false)
+      node.automatic_attrs[:platform_family] = "rhel"
+      node.automatic_attrs[:platform_version] = "7.3"
+      allow_any_instance_of(Chef::Provider::Package::Yum).to receive(:installed_version).with(0).and_return(Chef::Provider::Package::Yum::Version.new(nil, nil, nil))
+      allow_any_instance_of(Chef::Provider::Package::Yum).to receive(:available_version).with(0).and_return(Chef::Provider::Package::Yum::Version.new(nil, nil, nil))
+      allow_any_instance_of(Chef::Provider::Package::Yum::PythonHelper).to receive(:close_rpmdb)
     end
 
     context "when already attached to pool" do
@@ -72,7 +77,7 @@ describe Chef::Resource::RhsmSubscription do
       end
 
       it "attaches to pool" do
-        expect(provider).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}")
+        expect_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}")
         resource.run_action(:attach)
       end
 
