@@ -50,7 +50,7 @@ describe Chef::Resource::RhsmSubscription do
     before do
       dummy = Mixlib::ShellOut.new
       allow_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}").and_return(dummy)
-      allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription",)
+      allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription")
       allow(dummy).to receive(:exitstatus).and_return(0)
       allow(dummy).to receive(:error?).and_return(false)
     end
