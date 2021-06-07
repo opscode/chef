@@ -35,9 +35,7 @@ class Chef
         unless subscription_attached?(new_resource.pool_id)
           converge_by("attach subscription pool #{new_resource.pool_id}") do
             shell_out!("subscription-manager attach --pool=#{new_resource.pool_id}")
-            build_resource(:package, "rhsm_subscription-#{new_resource.pool_id}-flush_cache") do
-              action :nothing
-            end.run_action(:flush_cache)
+            build_resource(:package, "rhsm_subscription-#{new_resource.pool_id}-flush_cache").run_action(:flush_cache)
           end
         end
       end

@@ -26,9 +26,6 @@ describe Chef::Resource::RhsmSubscription do
   let(:resource) { Chef::Resource::RhsmSubscription.new(pool_id, run_context) }
   let(:provider) { resource.provider_for_action(resource.action) }
 
-  let(:flush_cache_package_name) { "rhsm_subscription-#{resource.pool_id}-flush_cache" }
-  let(:flush_cache_package_resource) { run_context.resource_collection.find(package: flush_cache_package_name) }
-
   it "has a resource name of :rhsm_subscription" do
     expect(resource.resource_name).to eql(:rhsm_subscription)
   end
@@ -81,10 +78,8 @@ describe Chef::Resource::RhsmSubscription do
         resource.run_action(:attach)
       end
 
-      it "flushes package provider cache" do
-        resource.run_action(:attach)
-        expect(flush_cache_package_resource.performed_actions).to eq([:flush_cache])
-      end
+      # No idea how to test this, but I think it should be unit tested.
+      it "flushes package provider cache"
     end
   end
 
