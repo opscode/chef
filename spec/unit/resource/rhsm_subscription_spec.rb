@@ -76,7 +76,7 @@ describe Chef::Resource::RhsmSubscription do
         resource.run_action(:attach)
       end
 
-      it "flushes yum cache" do
+      it "flushes package provider cache cache" do
         resource.run_action(:attach)
         expect(flush_cache_package_resource.performed_actions).to eq([:flush_cache])
       end
