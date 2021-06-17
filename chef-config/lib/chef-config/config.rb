@@ -612,26 +612,6 @@ module ChefConfig
 
     default :named_run_list, nil
 
-    # Policyfiles can be used in a native mode (default) or compatibility mode.
-    # Native mode requires Chef Server 12.1 (it can be enabled via feature flag
-    # on some prior versions). In native mode, policies and associated
-    # cookbooks are accessed via feature-specific APIs. In compat mode,
-    # policies are stored as data bags and cookbooks are stored at the
-    # cookbooks/ endpoint. Compatibility mode can be dangerous on existing Chef
-    # Servers; it's recommended to upgrade your Chef Server rather than use
-    # compatibility mode. Compatibility mode remains available so you can use
-    # policyfiles with servers that don't yet support the native endpoints.
-    default :policy_document_native_api, true
-
-    # When policyfiles are used in compatibility mode, `policy_name` and
-    # `policy_group` are instead specified using a combined configuration
-    # setting, `deployment_group`. For example, if policy_name should be
-    # "webserver" and policy_group should be "staging", then `deployment_group`
-    # should be set to "webserver-staging", which is the name of the data bag
-    # item that the policy will be stored as. NOTE: this setting only has an
-    # effect if `policy_document_native_api` is set to `false`.
-    default :deployment_group, nil
-
     # Set these to enable SSL authentication / mutual-authentication
     # with the server
 

@@ -320,12 +320,8 @@ class Chef
 
       # @api private
       def policyfile_location
-        if Chef::Config[:policy_document_native_api]
-          validate_policy_config!
-          "policy_groups/#{policy_group}/policies/#{policy_name}"
-        else
-          "data/policyfiles/#{deployment_group}"
-        end
+        validate_policy_config!
+        "policy_groups/#{policy_group}/policies/#{policy_name}"
       end
 
       # Do some minimal validation of the policyfile we fetched from the
@@ -364,11 +360,6 @@ class Chef
       end
 
       class ConfigurationError < StandardError; end
-
-      # @api private
-      def deployment_group
-        Chef::Config[:deployment_group] || raise(ConfigurationError, "Setting `deployment_group` is not configured.")
-      end
 
       # @api private
       def validate_policy_config!
@@ -477,15 +468,8 @@ class Chef
       # @api private
       # Fetches the CookbookVersion object for the given name and identifier
       # specified in the lock_data.
-      # TODO: This only implements Chef 11 compatibility mode, which means that
-      # cookbooks are fetched by the "dotted_decimal_identifier": a
-      # representation of a SHA1 in the traditional x.y.z version format.
       def manifest_for(cookbook_name, lock_data)
-        if Chef::Config[:policy_document_native_api]
-          artifact_manifest_for(cookbook_name, lock_data)
-        else
-          compat_mode_manifest_for(cookbook_name, lock_data)
-        end
+        artifact_manifest_for(cookbook_name, lock_data)
       end
 
       # @api private
@@ -539,17 +523,6 @@ class Chef
 
       def named_run_list_name
         Chef::Config[:named_run_list]
-      end
-
-      def compat_mode_manifest_for(cookbook_name, lock_data)
-        xyz_version = lock_data["dotted_decimal_identifier"]
-        rel_url = "cookbooks/#{cookbook_name}/#{xyz_version}"
-        inflate_cbv_object(api_service.get(rel_url))
-      rescue Exception => e
-        message = "Error loading cookbook #{cookbook_name} at version #{xyz_version} from #{rel_url}: #{e.class} - #{e.message}"
-        err = Chef::Exceptions::CookbookNotFound.new(message)
-        err.set_backtrace(e.backtrace)
-        raise err
       end
 
       def artifact_manifest_for(cookbook_name, lock_data)

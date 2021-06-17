@@ -206,101 +206,7 @@ describe Chef::PolicyBuilder::Policyfile do
     end
 
     before do
-      Chef::Config[:policy_document_native_api] = false
-      Chef::Config[:deployment_group] = "example-policy-stage"
       allow(policy_builder).to receive(:api_service).and_return(api_service)
-    end
-
-    describe "when using compatibility mode (policy_document_native_api == false)" do
-
-      before do
-        Chef::Config[:deployment_group] = "example-policy-stage"
-      end
-
-      context "when the deployment group cannot be loaded" do
-        let(:error404) { Net::HTTPClientException.new("404 message", :body) }
-
-        before do
-          expect(api_service).to receive(:get)
-            .with("data/policyfiles/example-policy-stage")
-            .and_raise(error404)
-        end
-
-        it "raises an error" do
-          expect { policy_builder.finish_load_node(node) }.to raise_error(err_namespace::ConfigurationError)
-        end
-
-      end
-
-      context "when the deployment_group is not configured" do
-        before do
-          Chef::Config[:deployment_group] = nil
-        end
-
-        it "errors while loading the node" do
-          expect { policy_builder.finish_load_node(node) }.to raise_error(err_namespace::ConfigurationError)
-        end
-
-      end
-
-      context "when deployment_group is correctly configured" do
-
-        let(:policy_relative_url) { "data/policyfiles/example-policy-stage" }
-
-        before do
-          expect(api_service).to receive(:get).with(policy_relative_url).and_return(parsed_policyfile_json)
-        end
-
-        it "fetches the policy file from a data bag item" do
-          expect(policy_builder.policy).to eq(parsed_policyfile_json)
-        end
-
-        it "extracts the run_list from the policyfile" do
-          expect(policy_builder.run_list).to eq(policyfile_run_list)
-        end
-
-      end
-    end
-
-    context "and policy_document_native_api is configured" do
-
-      before do
-        Chef::Config[:policy_document_native_api] = true
-        Chef::Config[:policy_group] = "policy-stage"
-        Chef::Config[:policy_name] = "example"
-      end
-
-      context "and policy_name or policy_group are not configured" do
-
-        it "raises a Configuration error for policy_group" do
-          Chef::Config[:policy_group] = nil
-          expect { policy_builder.policy }.to raise_error(err_namespace::ConfigurationError)
-        end
-
-        it "raises a Configuration error for policy_name" do
-          Chef::Config[:policy_name] = nil
-          expect { policy_builder.policy }.to raise_error(err_namespace::ConfigurationError)
-        end
-
-      end
-
-      context "and policy_name and policy_group are configured" do
-
-        let(:policy_relative_url) { "policy_groups/policy-stage/policies/example" }
-
-        before do
-          expect(api_service).to receive(:get).with(policy_relative_url).and_return(parsed_policyfile_json)
-        end
-
-        it "fetches the policy file from a data bag item" do
-          expect(policy_builder.policy).to eq(parsed_policyfile_json)
-        end
-
-        it "extracts the run_list from the policyfile" do
-          expect(policy_builder.run_list).to eq(policyfile_run_list)
-        end
-      end
-
     end
 
     describe "building policy from the policyfile" do
@@ -803,64 +709,33 @@ describe Chef::PolicyBuilder::Policyfile do
           end
         end # shared_examples_for "fetching cookbooks"
 
-        context "when using compatibility mode (policy_document_native_api == false)" do
-          let(:cookbook1_url) { "cookbooks/example1/#{example1_xyz_version}" }
-          let(:cookbook2_url) { "cookbooks/example2/#{example2_xyz_version}" }
-
-          context "when the cookbooks don't exist on the server" do
-            include_examples "fetching cookbooks when they don't exist"
-          end
-
-          context "when the cookbooks exist on the server" do
-
-            before do
-              expect(api_service).to receive(:get).with(cookbook1_url)
-                .and_return(example1_cookbook_data)
-              expect(api_service).to receive(:get).with(cookbook2_url)
-                .and_return(example2_cookbook_data)
-
-              expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example1_cookbook_data)
-                .and_return(example1_cookbook_object)
-              expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example2_cookbook_data)
-                .and_return(example2_cookbook_object)
-            end
-
-            include_examples "fetching cookbooks when they exist"
-          end
+        before do
+          Chef::Config[:policy_name] = "example"
+          Chef::Config[:policy_group] = "policy-stage"
         end
 
-        context "when using native API mode (policy_document_native_api == true)" do
+        let(:cookbook1_url) { "cookbook_artifacts/example1/#{example1_identifier}" }
+        let(:cookbook2_url) { "cookbook_artifacts/example2/#{example2_identifier}" }
+
+        context "when the cookbooks don't exist on the server" do
+          include_examples "fetching cookbooks when they don't exist"
+        end
+
+        context "when the cookbooks exist on the server" do
 
           before do
-            Chef::Config[:policy_document_native_api] = true
-            Chef::Config[:policy_group] = "policy-stage"
-            Chef::Config[:policy_name] = "example"
+            expect(api_service).to receive(:get).with(cookbook1_url)
+              .and_return(example1_cookbook_data)
+            expect(api_service).to receive(:get).with(cookbook2_url)
+              .and_return(example2_cookbook_data)
+
+            expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example1_cookbook_data)
+              .and_return(example1_cookbook_object)
+            expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example2_cookbook_data)
+              .and_return(example2_cookbook_object)
           end
 
-          let(:cookbook1_url) { "cookbook_artifacts/example1/#{example1_identifier}" }
-          let(:cookbook2_url) { "cookbook_artifacts/example2/#{example2_identifier}" }
-
-          context "when the cookbooks don't exist on the server" do
-            include_examples "fetching cookbooks when they don't exist"
-          end
-
-          context "when the cookbooks exist on the server" do
-
-            before do
-              expect(api_service).to receive(:get).with(cookbook1_url)
-                .and_return(example1_cookbook_data)
-              expect(api_service).to receive(:get).with(cookbook2_url)
-                .and_return(example2_cookbook_data)
-
-              expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example1_cookbook_data)
-                .and_return(example1_cookbook_object)
-              expect(Chef::CookbookVersion).to receive(:from_cb_artifact_data).with(example2_cookbook_data)
-                .and_return(example2_cookbook_object)
-            end
-
-            include_examples "fetching cookbooks when they exist"
-
-          end
+          include_examples "fetching cookbooks when they exist"
 
         end
 

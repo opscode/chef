@@ -144,19 +144,6 @@ describe Chef::PolicyBuilder::Dynamic do
 
         end
 
-        context "and deployment_group and policy_document_native_api are set on Chef::Config" do
-
-          before do
-            Chef::Config[:deployment_group] = "example-policy-staging"
-            Chef::Config[:policy_document_native_api] = false
-          end
-
-          it "uses the Policyfile implementation" do
-            expect(implementation).to be_a(Chef::PolicyBuilder::Policyfile)
-          end
-
-        end
-
         context "and policyfile attributes are present in json_attribs" do
 
           let(:json_attribs) { { "policy_name" => "example-policy", "policy_group" => "testing" } }
