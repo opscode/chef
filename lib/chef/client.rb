@@ -20,6 +20,8 @@
 
 require_relative "config"
 require_relative "mixin/params_validate"
+require "chef/mixin/powershell_exec"
+require "chef/mixin/shell_out"
 require "chef-utils/dsl/default_paths" unless defined?(ChefUtils::DSL::DefaultPaths)
 require_relative "log"
 require_relative "deprecated"
@@ -65,6 +67,8 @@ class Chef
   # syncs cookbooks if necessary, and triggers convergence.
   class Client
     extend Chef::Mixin::Deprecation
+    include Chef::Mixin::PowershellExec
+    include Chef::Mixin::ShellOut
 
     extend Forwardable
     #
@@ -638,13 +642,21 @@ class Chef
     # @api private
     #
     def register(client_name = node_name, config = Chef::Config)
+      puts "\n cli.rb - This is the client name I am using : #{client_name}"
+      puts "\n cli.rb - This is my client key : #{config[:client_key]}"
       if !config[:client_key]
         events.skipping_registration(client_name, config)
         logger.trace("Client key is unspecified - skipping registration")
-      elsif File.exists?(config[:client_key])
+      elsif detect_certificate_key(client_name)
+        events.skipping_registration(client_name, config)
+        logger.trace("Client key #{client_name} is present in certificate repository - skipping registration")
+        puts "\n cli.rb - Did I correctly detect a client key in the certstore or keychain : #{detect_certificate_key(client_name)}"
+        puts "\n cli.rb - Hey, I found an appropriate key in the keychain or Certstore!"
+      elsif File.exist?(config[:client_key])
         events.skipping_registration(client_name, config)
         logger.trace("Client key #{config[:client_key]} is present - skipping registration")
       else
+        puts "\n cli.rb - Did I correctly detect a client key in the certstore or keychain : #{detect_certificate_key(client_name)}"
         events.registration_start(node_name, config)
         logger.info("Client key #{config[:client_key]} is not present - registering")
         Chef::ApiClient::Registration.new(node_name, config[:client_key]).run
@@ -657,6 +669,60 @@ class Chef
       # user
       events.registration_failed(client_name, e, config)
       raise
+    end
+
+    #
+    # Detects if a private key exists in a certificate repository like Keychain (macOS) or Certificate Store (Windows)
+    #
+    # @param client_name - we're using the node name to store and retrieve any keys
+    # Returns true if a key is found, false if not. False will trigger a registration event which will lead to a certificate based key being created
+    #
+    #
+    def detect_certificate_key(client_name)
+      if ChefUtils.windows?
+        check_certstore_for_key(client_name)
+      elsif ChefUtils.macos?
+        puts "Made it to checking the macos key"
+        check_keychain_for_key(client_name)
+      else # generic return for Linux systemss
+        false
+      end
+    end
+
+    def check_certstore_for_key(client_name)
+      powershell_code = <<~CODE
+        $cert = Get-ChildItem -path cert:\\LocalMachine\\My -Recurse -Force  | Where-Object { $_.Subject -Match "#{client_name}" } -ErrorAction Stop
+        if ($cert) {
+          return $true
+        }
+        else{
+          return $false
+        }
+      CODE
+      powershell_exec!(powershell_code).result
+    end
+
+    # below we're checking Keychain for the presence of a cert.
+    # We compare the output we get because the code throws an error (127) if the cert isn't present
+    def check_keychain_for_key(client_name)
+      mine = shell_out! <<~EOH
+      getcert() {
+          CERTSTATUS=$(security find-certificate -c #{client_name} >/dev/null)
+          SUB='#{client_name}'
+          if [[ "$CERTSTATUS" == *"$SUB"* ]]; then
+              true
+          else
+              false
+          fi
+      }
+      getcert
+      getcertresult=$?
+      echo $getcertresult
+      EOH
+
+      # The bash script above checks for a cert in Keychain and returns a 127 if not present, 0 if present.
+      output = mine.run_command
+      output == '0' ? true : false
     end
 
     #
@@ -863,12 +929,6 @@ class Chef
     end
 
     def start_profiling
-      if Chef::Config[:slow_report]
-        require_relative "handler/slow_report"
-
-        Chef::Config.report_handlers << Chef::Handler::SlowReport.new(Chef::Config[:slow_report])
-      end
-
       return unless Chef::Config[:profile_ruby]
 
       profiling_prereqs!

@@ -59,6 +59,7 @@ class Chef
     end
 
     # Get this party started
+    # Called from the chef-client.rb file via Chef::Application::Client.new.run(enforce_license: true)
     def run(enforce_license: false)
       setup_signal_handlers
       reconfigure
@@ -125,7 +126,7 @@ class Chef
       Chef::ConfigFetcher
     end
 
-    # Parse the config file
+    # Parse the config file - think client.rb or similar file
     def load_config_file
       # apply the default cli options first
       chef_config.merge!(default_config)
@@ -145,6 +146,8 @@ class Chef
         logger.warn("*****************************************")
       else
         config_content = config_fetcher.read_config
+        # JFM
+        puts " app.rb - Here is my config file content : #{config_content}"
         apply_config(config_content, config[:config_file])
       end
       extra_config_options = config.delete(:config_option)
@@ -310,7 +313,7 @@ class Chef
       logger.info "Forking #{ChefUtils::Dist::Infra::PRODUCT} instance to converge..."
       pid = fork do
         # Want to allow forked processes to finish converging when
-        # TERM signal is received (exit gracefully)
+        # TERM singal is received (exit gracefully)
         trap("TERM") do
           logger.debug("SIGTERM received during converge," +
             " finishing converge to exit normally (send SIGINT to terminate immediately)")

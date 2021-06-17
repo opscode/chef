@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+require "chef/mixin/powershell_exec"
 require_relative "auth_credentials"
 require_relative "../exceptions"
 autoload :OpenSSL, "openssl"
@@ -25,6 +26,8 @@ class Chef
     class Authenticator
 
       DEFAULT_SERVER_API_VERSION = "2".freeze
+
+      include Chef::Mixin::PowershellExec
 
       attr_reader :signing_key_filename
       attr_reader :raw_key
@@ -83,8 +86,63 @@ class Chef
         @auth_credentials.client_name
       end
 
+      # def load_signing_key(key_file, raw_key = nil)
+      #   if !!key_file
+      #     @raw_key = IO.read(key_file).strip
+      #   elsif !!raw_key
+      #     @raw_key = raw_key.strip
+      #   else
+      #     return nil
+      #   end
+      #   # Pass in '' as the passphrase to avoid OpenSSL prompting on the TTY if
+      #   # given an encrypted key. This also helps if using a single file for
+      #   # both the public and private key with ssh-agent mode.
+      #   @key = OpenSSL::PKey::RSA.new(@raw_key, "")
+      # rescue SystemCallError, IOError => e
+      #   Chef::Log.warn "Failed to read the private key #{key_file}: #{e.inspect}"
+      #   raise Chef::Exceptions::PrivateKeyMissing, "I cannot read #{key_file}, which you told me to use to sign requests!"
+      # rescue OpenSSL::PKey::RSAError
+      #   msg = "The file #{key_file} or :raw_key option does not contain a correctly formatted private key or the key is encrypted.\n"
+      #   msg << "The key file should begin with '-----BEGIN RSA PRIVATE KEY-----' and end with '-----END RSA PRIVATE KEY-----'"
+      #   raise Chef::Exceptions::InvalidPrivateKey, msg
+      # end
+
       def load_signing_key(key_file, raw_key = nil)
-        if !!key_file
+        results = retrieve_certificate_key(Chef::Config[:node_name])
+        puts "\n"
+        puts " auth.rb - This is the key file name I am trying to load : #{key_file}"
+        puts " auth.rb - Is there a raw_key name? : #{raw_key ? raw_key : false}"
+        puts " auth.rb - Chef Config thinks this is my node name : #{Chef::Config[:node_name]}"
+        puts " auth.rb - Is the Global @node_name available here? : #{@node_Name ? @node_name : false}"
+        puts "\n"
+        if key_file == nil? && raw_key == nil?
+          puts "\nNo key detected\n"
+        elsif results != false
+          # results variable holds 2 values - "False" or the contents of a key.
+          @raw_key = results
+          puts "\n"
+          puts "Hey. I think I got a key back! #{results}"
+        # first time chef-client runs, generate node-name and burn that to the client.rb
+        # use that node name to create a p12/pfx on the fly
+        # store that
+        # add in code to dump key from certstore
+        # what key am I looking for? Should it be named Chef-Client or the S/N of the node or what? - it is the node name as derived from what is listed in the client.rb
+        # - Open the client.rb, ::File.read(client.rb)
+        # - Hit that with a regex to get the node name out
+        #
+        #
+        #   contents = ::File.read(::File.join(ChefConfig::Config.etc_chef_dir, "client.rb"))
+        #   node_name = contents.match(/^node_name.*$/).to_s.split(" ")[1].split(/\W+/)
+        #
+        # - Extract the pfx that matches that from Progress Key hive in HKLM I created earlier, node_name : some_random_value
+        # - extract the key, delete anything on disk
+        # - connect to Chef Server
+        # key_file and raw_key nil, check the certstore if Windows, keychain if Mac?
+        #
+        # Chef::Logger("Could not find the key in cert store, falling back to client.pem on disk")
+        # Check for the presence of a validation.pem file and delete it after my new client key is registered with the chef server.
+        #
+        elsif !!key_file
           @raw_key = IO.read(key_file).strip
         elsif !!raw_key
           @raw_key = raw_key.strip
@@ -102,6 +160,51 @@ class Chef
         msg = "The file #{key_file} or :raw_key option does not contain a correctly formatted private key or the key is encrypted.\n"
         msg << "The key file should begin with '-----BEGIN RSA PRIVATE KEY-----' and end with '-----END RSA PRIVATE KEY-----'"
         raise Chef::Exceptions::InvalidPrivateKey, msg
+      end
+
+      def retrieve_certificate_key(client_name)
+        if ChefUtils.windows?
+          check_and_retrieve_certstore_for_key(client_name)
+        elsif ChefUtils.macos?
+          check_keychain_for_key(client_name)
+        else # generic return for Linux systemss
+          false
+        end
+      end
+
+      def check_and_retrieve_certstore_for_key(client_name)
+        # This code block assumes a certificate with a subject name like "Chef-<node-name>" is in the \LocalMachine\My store and
+        # that here is a password stored in the registry to be used to export the pfx with.
+
+        require "openssl" unless defined?(OpenSSL)
+
+        powershell_password_code = <<~CODE
+            Try {
+                Get-ItemPropertyValue -Path "HKLM:\\Software\\Progress\\Authenticator" -Name "PfxPass" -ErrorAction Stop;
+            }
+            Catch {
+                return $false
+            }
+        CODE
+        password = powershell_exec!(powershell_password_code).result
+
+        powershell_code = <<~CODE
+            Try {
+                $pfspass = "#{password}"
+                $my_pwd = ConvertTo-SecureString -String $pfspass -Force -AsPlainText;
+                $cert = Get-ChildItem -path cert:\\LocalMachine\\My -Recurse | Where-Object { $_.Subject -match "#{client_name}" } -ErrorAction Stop;
+                $tempfile = [System.IO.Path]::GetTempPath() + "exportpfx.pfx";
+                Export-PfxCertificate -Cert $cert -Password $my_pwd -FilePath $tempfile;
+            }
+            Catch {
+                return $false
+            }
+        CODE
+        myresult = powershell_exec!(powershell_code).result
+
+        pkcs = OpenSSL::PKCS12.new(File.binread(myresult["PSPath"].split("::")[1]), password)
+        ::File.delete(myresult["PSPath"].split("::")[1])
+        return OpenSSL::PKey::RSA.new(pkcs.key.to_pem)
       end
 
       def authentication_headers(method, url, json_body = nil, headers = nil)
