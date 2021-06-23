@@ -85,13 +85,24 @@ class Chef
         if config[:file]
           file = config[:file]
 
-          unless File.writable?(File.dirname(file))
-            ui.fatal "Dir #{File.dirname(file)} is not writable. Check permissions."
+          dir_name = File.dirname(file)
+          if Dir.exist?(dir_name)
+            unless File.writable?(dir_name)
+              ui.fatal "Dir #{dir_name} is not writable. Check permissions."
+              exit 1
+            end
+          else
+            ui.fatal "Dir #{dir_name} dose not exist."
             exit 1
           end
 
-          unless File.writable?(file)
-            ui.fatal "File #{config[:file]} is not writable. Check permissions."
+          if File.exist?(file)
+            unless File.writable?(file)
+              ui.fatal "File #{config[:file]} is not writable. Check permissions."
+              exit 1
+            end
+          else
+            ui.fatal "File #{file} dose not exist."
             exit 1
           end
         end
