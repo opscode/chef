@@ -173,14 +173,14 @@ describe Chef::Knife::ClientCreate do
 
         it "when the directory does not exists" do
           knife.config[:file] = "example/client1.pem"
-          expect(knife.ui).to receive(:fatal).with("Dir example dose not exist.")
+          expect(knife.ui).to receive(:fatal).with("Directory example dose not exist.")
           expect { knife.run }.to raise_error(SystemExit)
         end
 
         it "when the directory not writable" do
           knife.config[:file] = file_path
           File.chmod(777, dir_path)
-          expect(knife.ui).to receive(:fatal).with("Dir #{dir_path} is not writable. Check permissions.")
+          expect(knife.ui).to receive(:fatal).with("Directory #{dir_path} is not writable. Check permissions.")
           expect { knife.run }.to raise_error(SystemExit)
         end
 

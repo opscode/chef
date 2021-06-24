@@ -18,6 +18,7 @@
 
 require_relative "../knife"
 require "chef-utils/dist" unless defined?(ChefUtils::Dist)
+require "pry"
 
 class Chef
   class Knife
@@ -84,27 +85,9 @@ class Chef
         # Check the file before creating the client so the api is more transactional.
         if config[:file]
           file = config[:file]
-
           dir_name = File.dirname(file)
-          if Dir.exist?(dir_name)
-            unless File.writable?(dir_name)
-              ui.fatal "Dir #{dir_name} is not writable. Check permissions."
-              exit 1
-            end
-          else
-            ui.fatal "Dir #{dir_name} dose not exist."
-            exit 1
-          end
-
-          if File.exist?(file)
-            unless File.writable?(file)
-              ui.fatal "File #{config[:file]} is not writable. Check permissions."
-              exit 1
-            end
-          else
-            ui.fatal "File #{file} dose not exist."
-            exit 1
-          end
+          chek_writable_or_exists(dir_name, "Directory")
+          chek_writable_or_exists(file, "File")
         end
 
         output = edit_hash(client)
@@ -120,6 +103,19 @@ class Chef
           else
             puts final_client.private_key
           end
+        end
+      end
+
+      # To check if file or directory exists or writable and raise execption accordingly
+      def chek_writable_or_exists(file, type)
+        if File.exist?(file)
+          unless File.writable?(file)
+            ui.fatal "#{type} #{file} is not writable. Check permissions."
+            exit 1
+          end
+        else
+          ui.fatal "#{type} #{file} dose not exist."
+          exit 1
         end
       end
     end
