@@ -18,7 +18,6 @@
 
 require_relative "../knife"
 require "chef-utils/dist" unless defined?(ChefUtils::Dist)
-require "pry"
 
 class Chef
   class Knife
@@ -86,8 +85,8 @@ class Chef
         if config[:file]
           file = config[:file]
           dir_name = File.dirname(file)
-          chek_writable_or_exists(dir_name, "Directory")
-          chek_writable_or_exists(file, "File")
+          check_writable_or_exists(dir_name, "Directory")
+          check_writable_or_exists(file, "File")
         end
 
         output = edit_hash(client)
@@ -107,7 +106,7 @@ class Chef
       end
 
       # To check if file or directory exists or writable and raise execption accordingly
-      def chek_writable_or_exists(file, type)
+      def check_writable_or_exists(file, type)
         if File.exist?(file)
           unless File.writable?(file)
             ui.fatal "#{type} #{file} is not writable. Check permissions."

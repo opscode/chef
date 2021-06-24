@@ -184,6 +184,7 @@
     "checkpointing",
     "checksummed",
     "checksumming",
+    "check_writable_or_exists"
     "CHEFBIN",
     "chefcli",
     "chefclientbootstraptask",
