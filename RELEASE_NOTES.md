@@ -1,5 +1,162 @@
 This file holds "in progress" release notes for the current release under development and is intended for consumption by the Chef Documentation team. Please see <https://docs.chef.io/release_notes/> for the official Chef release notes.
 
+## What's New in 17.3
+
+### Compliance Phase Improvements
+
+#### Chef InSpec 4.38
+
+We've updated Chef InSpec from 4.37.23 to 4.38.3:
+
+##### New Features
+
+- Added a new mongodb_conf resource.
+
+##### Bug Fixes
+
+- Changed the Windows local pipe server connection to retry once on EPIPE.
+- Exceptions are now handled correctly in the oracledb_session resource.
+- Fixed the mysql_session resource to raise an exception if there is an error in a connection or query.
+- Fixed the postgres_session resource to raise an exception if there is an error in a connection or query
+
+### Override Run Lists with Policyfiles
+
+You can now execute Chef Infra Client using override run lists on nodes that are managed with Policyfiles.
+
+#### Safety With Overrides
+
+Override run lists with Policyfiles gives you the safety of locked sets of cookbook dependencies while also giving you the flexibility of running different run lists on nodes for adhoc Chef Infra Client converges. Unlike traditional override run lists where an entire new set of dependencies is determined, override run lists with Policyfiles continues to run within the predefined set of cookbook dependencies in your Policyfile. This allows you to override run lists without bringing new, and potentially untested, cookbook dependencies.
+
+#### How This Differs From Named Run Lists
+
+Override run lists offer additional flexibility over named run lists and are better suited for adhoc Chef Infra Client execution. Named run lists within Policyfiles need to be defined when the Policyfile is uploaded, requiring you to predefine each potential run list you may want to run at a future data. Additionally running Chef Infra Client with a named run list saves that new run list to the Chef Infra Server, while override run lists are temporary and not saved to the server. This helps avoid potential failures from cookbooks that may search for nodes based on run lists.
+
+### New Resources
+
+#### windows_defender
+
+Use the **windows_defender** resource to enable or disable the Microsoft Windows Defender service.
+
+```ruby
+windows_defender 'Configure Defender' do
+  realtime_protection true
+  intrusion_protection_system true
+  lock_ui true
+  scan_archives true
+  scan_scripts true
+  scan_email true
+  scan_removable_drives true
+  scan_network_files false
+  scan_mapped_drives false
+  action :enable
+end
+```
+
+#### windows_defender_exclusion
+
+Use the **windows_defender_exclusion** resource to exclude paths, processes, or file types from Windows Defender realtime protection scanning.
+
+```ruby
+windows_defender_exclusion 'Add to things to be excluded from scanning' do
+  paths 'c:\\foo\\bar, d:\\bar\\baz'
+  extensions 'png, foo, ppt, doc'
+  process_paths 'c:\\windows\\system32'
+  action :add
+end
+```
+
+#### habitat_package
+
+#### habitat_sup
+
+#### habitat_config
+
+#### habitat_install
+
+#### habitat_service
+
+#### habitat_user_toml
+
+### Updated Resources
+
+#### powershell_package
+
+The `powershell_package` resource has been updated to allow passing an array of install options via the `options` property. Thanks for reporting this issue [@kimbernator](https://github.com/kimbernator)
+
+#### windows_printer
+
+The `windows_printer` resource has been updated to better load the current state of the printer and to allow controlling the creation of the printer port. The resource now includes a `create_port` property that allows skipping the creation of the printer port and a `port_name` property that allows specifying the name of the port to use. With these new properties, users can create advanced printer ports using the `windows_printer_port` resource and then attach a new printer to those ports using the `windows_printer` resource.
+
+```ruby
+windows_printer_port '10.4.64.39' do
+  port_name 'My awesome printer port'
+  snmp_enabled true
+  port_protocol 2
+end
+
+windows_printer 'HP LaserJet 5th Floor' do
+  driver_name 'HP LaserJet 4100 Series PCL6'
+  port_name 'My awesome printer port'
+  ipv4_address '10.4.64.38'
+  create_port false
+end
+```
+
+#### chef_client_config
+
+The `chef_client_config` resource has been updated to...
+
+### Chef Language Improvements
+
+We've added several new helpers to the Chef Infra Language to make writing out various data formats easier.
+
+#### render_json
+
+#### render_toml
+
+#### render_yaml
+
+### Experimental Secrets Management
+
+With Chef Infra Client 17.3 we're introducing experimental secrets management integration. This functionality should be considered a beta and not be used in production. We'd love to get feedback on how how this works for you and additional features you'd like or need in order to utilize secrets from secret managers within your cookbooks. E-mail us at secrets_management_beta@progress.com.
+
+This beta adds a new `secrets` helper to the Chef Infra Language with a plugable model for different secrets management systems. In this release of Chef Infra Client we've added initial support for AWS Secrets Manager and Azure Key Vault. In future releases we hope to add support for additional secrets management systems such as HashiCorp Vault and Akeyless Vault.
+
+### System Detection Improvements
+
+#### virtuozzo Support
+
+The `virtuozzo` platform is now detected as a member of the RHEL platform_family. Thanks for this addition [@robertmasztalerz](https://github.com/robertmasztalerz)!
+
+#### Linux Livepatch Detection
+
+A new Ohai optional plugin `:Livepatch` has been added to detect Linux kernel Livepatch modules that have been loaded on a system. This plugin can be enabled on systems using the `ohai_optional_plugins` property in the [chef_client_config resource](https://docs.chef.io/resources/chef_client_config). Thanks for this new plugin [@liu-song-6](https://github.com/liu-song-6)!
+
+
+### Package Improvements
+
+#### M1 macOS Monterey Packages
+
+Chef Infra Client packages are now produced for Apple's macOS Monterey preview release. Packages for Intel-based Macs will ship at a later date.
+
+#### Solaris 11.3 EOL / Solaris 11.4 Packages
+
+Oracle Solaris 11.3 became end-of-life (EOL) in January 2021. Chef Infra Client packages are no longer produced for Solaris 11.3 and new Solaris 11.4 packages are available in their place.
+
+#### FIPS on PPC RHEL
+
+Failures initializing Chef Infra Client on FIPS enabled PowerPC RHEL systems have been resolved.
+
+### Security
+
+#### Ruby 3.0.2
+
+Ruby has been updated to 3.0.2 to resolve a large number of bugs as well as the following CVEs:
+
+- [CVE-2021-31810](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-31810)
+- [CVE-2021-32066](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-32066)
+- [CVE-2021-31799](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-31799)
+
 ## What's New in 17.2
 
 ### Compliance Phase Improvements
