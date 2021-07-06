@@ -7,6 +7,13 @@ GIT
       rubocop (= 1.18.3)
 
 GIT
+  remote: https://github.com/chef/corefoundation.git
+  revision: 7df25155153ca6b5a14a494e63cfb2b8f7548f8b
+  specs:
+    corefoundation (0.2.0)
+      ffi
+
+GIT
   remote: https://github.com/chef/ohai.git
   revision: faf25314310a9ce27a7ba3e73ffb8301633dec83
   branch: master
@@ -41,6 +48,7 @@ PATH
       chef-utils (= 17.3.21)
       chef-vault
       chef-zero (>= 14.0.11)
+      corefoundation
       diff-lcs (>= 1.2.4, < 1.4.0)
       erubis (~> 2.7)
       ffi (>= 1.5.0)
@@ -68,6 +76,7 @@ PATH
       chef-utils (= 17.3.21)
       chef-vault
       chef-zero (>= 14.0.11)
+      corefoundation
       diff-lcs (>= 1.2.4, < 1.4.0)
       erubis (~> 2.7)
       ffi (>= 1.5.0)
@@ -419,6 +428,7 @@ DEPENDENCIES
   chef-vault
   cheffish (>= 17)
   chefstyle!
+  corefoundation!
   fauxhai-ng
   inspec-core-bin (~> 4.24)
   ohai!
@@ -432,4 +442,4 @@ DEPENDENCIES
   webmock
 
 BUNDLED WITH
-   2.2.19
+   2.2.20

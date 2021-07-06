@@ -17,6 +17,7 @@
 
 require_relative "../resource"
 require "chef-utils/dist" unless defined?(ChefUtils::Dist)
+require "corefoundation"
 autoload :Plist, "plist"
 
 class Chef
@@ -89,10 +90,11 @@ class Chef
 
       property :type, String,
         description: "The value type of the preference key.",
+        deprecated: true,
         equal_to: %w{bool string int float array dict},
         desired_state: false
 
-      property :user, String,
+      property :user, [String, Symbol],
         description: "The system user that the default will be applied to.",
         desired_state: false
 
@@ -102,50 +104,20 @@ class Chef
         desired_state: false
 
       load_current_value do |new_resource|
-        Chef::Log.debug "#load_current_value: shelling out \"#{defaults_export_cmd(new_resource).join(" ")}\" to determine state"
-        state = shell_out(defaults_export_cmd(new_resource), user: new_resource.user)
+        state = read_preferences(new_resource)
 
-        if state.error? || state.stdout.empty?
-          Chef::Log.debug "#load_current_value: #{defaults_export_cmd(new_resource).join(" ")} returned stdout: #{state.stdout} and stderr: #{state.stderr}"
+        # TODO: error handling
+        unless state
+          Chef::Log.debug "#{new_resource.key} could not be found in the domain"
           current_value_does_not_exist!
         end
 
-        plist_data = ::Plist.parse_xml(state.stdout)
-
-        # handle the situation where the key doesn't exist in the domain
-        if plist_data.key?(new_resource.key)
-          key new_resource.key
-        else
-          current_value_does_not_exist!
-        end
-
-        value plist_data[new_resource.key]
-      end
-
-      #
-      # The defaults command to export a domain
-      #
-      # @return [Array] defaults command
-      #
-      def defaults_export_cmd(resource)
-        state_cmd = ["/usr/bin/defaults"]
-
-        if resource.host == "current"
-          state_cmd.concat(["-currentHost"])
-        elsif resource.host # they specified a non-nil value, which is a hostname
-          state_cmd.concat(["-host", resource.host])
-        end
-
-        state_cmd.concat(["export", resource.domain, "-"])
-        state_cmd
+        value state
       end
 
       action :write, description: "Write the value to the specified domain/key." do
         converge_if_changed do
-          cmd = defaults_modify_cmd
-          Chef::Log.debug("Updating defaults value by shelling out: #{cmd.join(" ")}")
-
-          shell_out!(cmd, user: new_resource.user)
+          write_preferences(new_resource)
         end
       end
 
@@ -153,98 +125,42 @@ class Chef
         # if it's not there there's nothing to remove
         return unless current_resource
 
-        converge_by("delete domain:#{new_resource.domain} key:#{new_resource.key}") do
-
-          cmd = defaults_modify_cmd
-          Chef::Log.debug("Removing defaults key by shelling out: #{cmd.join(" ")}")
-
-          shell_out!(cmd, user: new_resource.user)
-        end
+        # TODO: implement in CF and use here
       end
 
       action_class do
-        #
-        # The command used to write or delete delete values from domains
-        #
-        # @return [Array] Array representation of defaults command to run
-        #
-        def defaults_modify_cmd
-          cmd = ["/usr/bin/defaults"]
+        CF_MAPPING = {
+          current_user: CF::Preferences::CURRENT_USER,
+          all_users: CF::Preferences::ALL_USERS,
+          current_host: CF::Preferences::CURRENT_HOST,
+          all_hosts: CF::Preferences::ALL_HOSTS,
+          current: CF::Preferences::CURRENT_HOST # TODO: deprecation warning for this option
+        }
 
-          if new_resource.host == :current
-            cmd.concat(["-currentHost"])
-          elsif new_resource.host # they specified a non-nil value, which is a hostname
-            cmd.concat(["-host", new_resource.host])
-          end
-
-          cmd.concat([action.to_s, new_resource.domain, new_resource.key])
-          cmd.concat(processed_value) if action == :write
-          cmd.prepend("sudo") if new_resource.sudo
-          cmd
+        def read_preferences(new_resource)
+          CF::Preferences.get(new_resource.key, new_resource.domain, mapped_user, mapped_host)
         end
 
-        #
-        # convert the provided value into the format defaults expects
-        #
-        # @return [array] array of values starting with the type if applicable
-        #
-        def processed_value
-          type = new_resource.type || value_type(new_resource.value)
-
-          # when dict this creates an array of values ["Key1", "Value1", "Key2", "Value2" ...]
-          cmd_values = ["-#{type}"]
-
-          case type
-          when "dict"
-            cmd_values.concat(new_resource.value.flatten)
-          when "array"
-            cmd_values.concat(new_resource.value)
-          when "bool"
-            cmd_values.concat(bool_to_defaults_bool(new_resource.value))
-          else
-            cmd_values.concat([new_resource.value])
-          end
-
-          cmd_values
+        def write_preferences(new_resource)
+          CF::Preferences.set(new_resource.key, new_resource.value, new_resource.domain, mapped_user, mapped_host)
         end
 
-        #
-        # defaults booleans on the CLI must be 'TRUE' or 'FALSE' so convert various inputs to that
-        #
-        # @param [String, Integer, Boolean] input <description>
-        #
-        # @return [String] TRUE or FALSE
-        #
-        def bool_to_defaults_bool(input)
-          return ["TRUE"] if [true, "TRUE", "1", "true", "YES", "yes"].include?(input)
-          return ["FALSE"] if [false, "FALSE", "0", "false", "NO", "no"].include?(input)
-
-          # make sure it's very clear bad input was given
-          raise ArgumentError, "#{input} cannot be converted to a boolean value for use with Apple's defaults command. Acceptable values are: 'TRUE', 'YES', 'true, 'yes', '0', true, 'FALSE', 'false', 'NO', 'no', '1', or false."
+        def mapped_user
+          CF_MAPPING[valid_user.to_sym] || valid_user.to_s
         end
 
-        #
-        # convert ruby type to defaults type
-        #
-        # @param [Integer, Float, String, TrueClass, FalseClass, Hash, Array] value The value being set
-        #
-        # @return [string, nil] the type value used by defaults or nil if not applicable
-        #
-        def value_type(value)
-          case value
-          when true, false
-            "bool"
-          when Integer
-            "int"
-          when Float
-            "float"
-          when Hash
-            "dict"
-          when Array
-            "array"
-          when String
-            "string"
-          end
+        def mapped_host
+          CF_MAPPING[valid_host.to_sym] || valid_host.to_s
+        end
+
+        def valid_user
+          # TODO: check backward compatibility and defaults util convention
+          new_resource.user || :current_user
+        end
+
+        def valid_host
+          # TODO: check backward compatibility and defaults util convention
+          new_resource.host || :all_hosts
         end
       end
     end

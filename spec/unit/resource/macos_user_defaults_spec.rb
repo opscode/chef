@@ -51,86 +51,39 @@ describe Chef::Resource::MacosUserDefaults do
     expect { resource.action :write }.not_to raise_error
   end
 
-  describe "#defaults_export_cmd" do
-    it "exports NSGlobalDomain if no domain is set" do
-      expect(provider.defaults_export_cmd(resource)).to eq(["/usr/bin/defaults", "export", "NSGlobalDomain", "-"])
+  describe '#mapped_host' do
+    it "uses `all_hosts` as default" do
+      expect(provider.mapped_host).to eq CF::Preferences::ALL_HOSTS
     end
 
-    it "exports a provided domain" do
-      resource.domain "com.tim"
-      expect(provider.defaults_export_cmd(resource)).to eq(["/usr/bin/defaults", "export", "com.tim", "-"])
+    it "maps `current` to corresponding constant" do
+      resource.host = :current
+      expect(provider.mapped_host).to eq CF::Preferences::CURRENT_HOST
     end
 
-    it "sets -currentHost if host is 'current'" do
-      resource.host "current"
-      expect(provider.defaults_export_cmd(resource)).to eq(["/usr/bin/defaults", "-currentHost", "export", "NSGlobalDomain", "-"])
-    end
-
-    it "sets -host 'tim-laptop if host is 'tim-laptop'" do
-      resource.host "tim-laptop"
-      expect(provider.defaults_export_cmd(resource)).to eq(["/usr/bin/defaults", "-host", "tim-laptop", "export", "NSGlobalDomain", "-"])
+    it "maps `current_host` to correct corresponding constant" do
+      resource.host = :current_host
+      expect(provider.mapped_host).to eq CF::Preferences::CURRENT_HOST
     end
   end
 
-  describe "#defaults_modify_cmd" do
-    # avoid needing to set these required values over and over. We'll overwrite them where necessary
-    before do
-      resource.key = "foo"
-      resource.value = "bar"
+  describe '#mapped_user' do
+    it "uses `current_user` as default" do
+      expect(provider.mapped_user).to eq CF::Preferences::CURRENT_USER
     end
 
-    it "writes to NSGlobalDomain if domain isn't specified" do
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-string", "bar"])
+    it "maps `all_users` to corresponding constant" do
+      resource.user = :all_users
+      expect(provider.mapped_user).to eq CF::Preferences::ALL_USERS
     end
+  end
 
-    it "uses the domain property if set" do
-      resource.domain = "MyCustomDomain"
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "MyCustomDomain", "foo", "-string", "bar"])
-    end
-
-    it "sets host specific values using host property" do
-      resource.host = "tims_laptop"
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "-host", "tims_laptop", "write", "NSGlobalDomain", "foo", "-string", "bar"])
-    end
-
-    it "if host is set to :current it passes CurrentHost" do
-      resource.host = :current
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "-currentHost", "write", "NSGlobalDomain", "foo", "-string", "bar"])
-    end
-
-    it "raises ArgumentError if bool is specified, but the value can't be made into a bool" do
-      resource.type "bool"
-      expect { provider.defaults_modify_cmd }.to raise_error(ArgumentError)
-    end
-
-    it "autodetects array type and passes individual values" do
-      resource.value = %w{one two three}
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-array", "one", "two", "three"])
-    end
-
-    it "autodetects string type and passes a single value" do
-      resource.value = "one"
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-string", "one"])
-    end
-
-    it "autodetects integer type and passes a single value" do
-      resource.value = 1
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-int", 1])
-    end
-
-    it "autodetects boolean type from TrueClass value and passes a 'TRUE' string" do
-      resource.value = true
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-bool", "TRUE"])
-    end
-
-    it "autodetects boolean type from FalseClass value and passes a 'FALSE' string" do
-      resource.value = false
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-bool", "FALSE"])
-    end
-
-    it "autodetects dict type from Hash value and flattens keys & values" do
-      resource.value = { "foo" => "bar" }
-      expect(provider.defaults_modify_cmd).to eq(["/usr/bin/defaults", "write", "NSGlobalDomain", "foo", "-dict", "foo", "bar"])
+  # TODO: should be a functional/integration test
+  describe "#read_preferences" do
+    it "reads preference/state" do
+      resource.domain = "NSGlobalDomain"
+      resource.key = "AppleKeyboardUIMode"
+      expect(provider.read_preferences(resource)).to be_nil
     end
   end
 end

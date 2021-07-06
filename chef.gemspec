@@ -55,6 +55,8 @@ Gem::Specification.new do |s|
 
   s.add_dependency "proxifier", "~> 1.0"
 
+  s.add_dependency "corefoundation"
+
   s.bindir       = "bin"
   s.executables  = %w{ }
 
