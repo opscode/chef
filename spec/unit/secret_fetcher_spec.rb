@@ -35,8 +35,12 @@ describe Chef::SecretFetcher do
   end
 
   context ".for_service" do
-    it "resolves a known secrets service to a fetcher" do
+    it "resolves the example fetcher without error" do
       Chef::SecretFetcher.for_service(:example, {})
+    end
+
+    it "resolves the AWS fetcher without error" do
+      Chef::SecretFetcher.for_service(:aws_secrets_manager, region: "invalid")
     end
 
     it "raises Chef::Exceptions::Secret::MissingFetcher when service is blank" do

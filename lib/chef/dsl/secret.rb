@@ -30,16 +30,19 @@ class Chef
       #                         perform the secret lookup
       # @option config [Hash] The configuration that the named service expects
       #
+      # @return result [Object] The response object type is determined by the fetcher. See fetcher documentation
+      # to know what to expect for a given service.
+      #
       # @example
       #
       # This example uses the built-in :example secret manager service, which
       # accepts a hash of secrets.
       #
-      #   value = secret(name: "test1", service: :example, config: { "test1" => "value1" } )
+      #   value = secret(name: "test1", service: :example, config: { "test1" => "value1" })
       #   log "My secret is #{value}"
       #
-      #   value = secret(name: "test1", service: :aws_secrets_manager, config: { "region" => "us-west-1" })
-      #   log "My secret is #{value}"
+      #   value = secret(name: "test1", service: :aws_secrets_manager, config: { region: "us-west-1" })
+      #   log "My secret is #{value.secret_string}"
       #
       # @note
       #
