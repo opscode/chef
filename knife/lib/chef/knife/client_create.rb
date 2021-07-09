@@ -113,7 +113,7 @@ class Chef
             exit 1
           end
         else
-          ui.fatal "#{type} #{file} dose not exist."
+          ui.fatal "#{type} #{file} does not exist."
           exit 1
         end
       end

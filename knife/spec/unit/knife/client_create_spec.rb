@@ -173,7 +173,7 @@ describe Chef::Knife::ClientCreate do
 
         it "when the directory does not exists" do
           knife.config[:file] = "example/client1.pem"
-          expect(knife.ui).to receive(:fatal).with("Directory example dose not exist.")
+          expect(knife.ui).to receive(:fatal).with("Directory example does not exist.")
           expect { knife.run }.to raise_error(SystemExit)
         end
 
@@ -188,7 +188,7 @@ describe Chef::Knife::ClientCreate do
           path = "#{dir_path}/client1.pem"
           knife.config[:file] = path
           File.chmod(0755, dir_path)
-          expect(knife.ui).to receive(:fatal).with("File #{path} dose not exist.")
+          expect(knife.ui).to receive(:fatal).with("File #{path} does not exist.")
           expect { knife.run }.to raise_error(SystemExit)
         end
 
