@@ -452,6 +452,7 @@ describe Chef::Provider::Package::Apt do
     describe Chef::Resource::AptPackage, "remove_package" do
 
       it "should run apt-get remove with the package name" do
+        allow(@provider).to receive(:resolve_package_versions).with("irssi").and_return(["0.8.12-7"])
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "remove", "irssi",
           env: { "DEBIAN_FRONTEND" => "noninteractive" },
@@ -461,6 +462,7 @@ describe Chef::Provider::Package::Apt do
       end
 
       it "should run apt-get remove with the package name and options if specified" do
+        allow(@provider).to receive(:resolve_package_versions).with("irssi").and_return(["0.8.12-7"])
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "--force-yes", "remove", "irssi",
           env: { "DEBIAN_FRONTEND" => "noninteractive" },
@@ -475,6 +477,7 @@ describe Chef::Provider::Package::Apt do
     describe "when purging a package" do
 
       it "should run apt-get purge with the package name" do
+        allow(@provider).to receive(:resolve_package_versions).with("irssi").and_return(["0.8.12-7"])
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "purge", "irssi",
           env: { "DEBIAN_FRONTEND" => "noninteractive" },
@@ -484,6 +487,7 @@ describe Chef::Provider::Package::Apt do
       end
 
       it "should run apt-get purge with the package name and options if specified" do
+        allow(@provider).to receive(:resolve_package_versions).with("irssi").and_return(["0.8.12-7"])
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "--force-yes", "purge", "irssi",
           env: { "DEBIAN_FRONTEND" => "noninteractive" },
@@ -621,6 +625,7 @@ describe Chef::Provider::Package::Apt do
 
     describe "when removing a virtual package" do
       it "should remove the resolved name instead of the virtual package name" do
+        allow(@provider).to receive(:resolve_package_versions).with("libmysqlclient15-dev").and_return(["not_a_real_version"])
         expect(@provider).to receive(:resolve_virtual_package_name).with("libmysqlclient15-dev").and_return("libmysqlclient-dev")
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "remove", "libmysqlclient-dev",
@@ -633,6 +638,7 @@ describe Chef::Provider::Package::Apt do
 
     describe "when purging a virtual package" do
       it "should purge the resolved name instead of the virtual package name" do
+        allow(@provider).to receive(:resolve_package_versions).with("libmysqlclient15-dev").and_return(["not_a_real_version"])
         expect(@provider).to receive(:resolve_virtual_package_name).with("libmysqlclient15-dev").and_return("libmysqlclient-dev")
         expect(@provider).to receive(:shell_out_compacted!).with(
           "apt-get", "-q", "-y", "purge", "libmysqlclient-dev",

@@ -102,14 +102,20 @@ class Chef
 
         def remove_package(name, version)
           package_name = name.map do |n|
-            package_data[n][:virtual] ? resolve_virtual_package_name(n) : n
+            versions = resolve_package_versions(n)
+            unless versions[0].nil?
+              package_data[n][:virtual] ? resolve_virtual_package_name(n) : n
+            end
           end
           run_noninteractive("apt-get", "-q", "-y", options, "remove", package_name)
         end
 
         def purge_package(name, version)
           package_name = name.map do |n|
-            package_data[n][:virtual] ? resolve_virtual_package_name(n) : n
+            versions = resolve_package_versions(n)
+            unless versions[0].nil?
+              package_data[n][:virtual] ? resolve_virtual_package_name(n) : n
+            end
           end
           run_noninteractive("apt-get", "-q", "-y", options, "purge", package_name)
         end
