@@ -34,9 +34,13 @@ describe Chef::SecretFetcher do
     allow(Chef::SecretFetcher::Example).to receive(:new).and_return fetcher_impl
   end
 
-  context ".for_service" do
+  context ".for_service", :focus do
     it "resolves the example fetcher without error" do
       Chef::SecretFetcher.for_service(:example, {})
+    end
+
+    it "resolves the Azure Key Vault fetcher without error" do
+      Chef::SecretFetcher.for_service(:azure_key_vault, vault: "invalid")
     end
 
     it "resolves the AWS fetcher without error" do

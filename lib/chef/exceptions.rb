@@ -308,6 +308,7 @@ class Chef
         end
       end
 
+      class MissingVaultName < RuntimeError; end
     end
 
     # Exception class for collecting multiple failures. Used when running
