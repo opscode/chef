@@ -248,8 +248,8 @@ class Chef
       # Debugs ruby syntax errors by printing the path to the file and any
       # diagnostic info given in +error_message+
       def invalid_ruby_file(ruby_file, error_message)
-        file_relative_path = ruby_file[/^#{Regexp.escape(cookbook_path + File::Separator)}(.*)/, 1]
-        Chef::Log.fatal("Cookbook file #{file_relative_path} has a ruby syntax error:")
+        file_relative_path = ruby_file[ruby_file.index(cookbook_path.split("/").last), ruby_file.length]
+        Chef::Log.fatal("Cookbook file #{file_relative_path} has a ruby syntax error.")
         error_message.each_line { |l| Chef::Log.fatal(l.chomp) }
         false
       end
