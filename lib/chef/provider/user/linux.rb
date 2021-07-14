@@ -54,6 +54,8 @@ class Chef
           opts << "-c" << new_resource.comment if should_set?(:comment)
           opts << "-g" << new_resource.gid if should_set?(:gid)
           opts << "-p" << new_resource.password if should_set?(:password)
+          opts << "-e" << new_resource.expire_date if should_set?(:expire_date)
+          opts << "-f" << new_resource.inactive if should_set?(:inactive)
           opts << "-s" << new_resource.shell if should_set?(:shell)
           opts << "-u" << new_resource.uid if should_set?(:uid)
           opts << "-d" << new_resource.home if updating_home?
