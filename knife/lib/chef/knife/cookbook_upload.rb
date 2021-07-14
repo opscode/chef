@@ -71,6 +71,11 @@ class Chef
         long: "--include-dependencies",
         description: "Also upload cookbook dependencies."
 
+      option :check_dependencies,
+        boolean: true, long: "--[no-]check-dependencies",
+        description: "Whether or not cookbook dependencies are verified before uploading cookbook(s) to #{ChefUtils::Dist::Server::PRODUCT}. You shouldn't disable this unless you really know what you're doing.",
+        default: true
+
       def run
         # Sanity check before we load anything from the server
         if ! config[:all] && @name_args.empty?
@@ -85,11 +90,6 @@ class Chef
         version_constraints_to_update = {}
         upload_failures = 0
         upload_ok = 0
-
-        # Get a list of cookbooks and their versions from the server
-        # to check for the existence of a cookbook's dependencies.
-        @server_side_cookbooks = Chef::CookbookVersion.list_all_versions
-        justify_width = @server_side_cookbooks.map(&:size).max.to_i + 2
 
         cookbooks = []
         cookbooks_to_upload.each do |cookbook_name, cookbook|
@@ -120,7 +120,7 @@ class Chef
             if config[:all]
               if cookbooks_for_upload.any?
                 begin
-                  upload(cookbooks_for_upload, justify_width)
+                  upload(cookbooks_for_upload)
                 rescue Chef::Exceptions::CookbookFrozen
                   ui.warn("Not updating version constraints for some cookbooks in the environment as the cookbook is frozen.")
                   ui.error("Uploading of some of the cookbooks must be failed. Remove cookbook whose version is frozen from your cookbooks repo OR use --force option.")
@@ -133,7 +133,7 @@ class Chef
             else
               tmp_cl.each do |cookbook_name, cookbook|
 
-                upload([cookbook], justify_width)
+                upload([cookbook])
                 upload_ok += 1
               rescue Exceptions::CookbookNotFoundInRepo => e
                 upload_failures += 1
@@ -162,6 +162,27 @@ class Chef
               update_version_constraints(version_constraints_to_update) if config[:environment]
             end
           end
+        end
+      end
+
+      def server_side_cookbooks
+        @server_side_cookbooks ||= Chef::CookbookVersion.list_all_versions
+      end
+
+      def justify_width
+        @justify_width ||= server_side_cookbooks.map(&:size).max.to_i + 2
+      end
+
+      #
+      # @param cookbook [Chef::CookbookVersion]
+      #
+      def left_justify_name(cookbook)
+        # We only want to lookup justify width value if we're already loading
+        # cookbooks to check dependencies exist in Chef Infra Server.
+        if config[:check_dependencies] == true
+          cookbook.name.to_s.ljust(justify_width + 10)
+        else
+          cookbook.name.to_s.ljust(24)
         end
       end
 
@@ -220,11 +241,11 @@ class Chef
         end
       end
 
-      def upload(cookbooks, justify_width)
+      def upload(cookbooks)
         cookbooks.each do |cb|
-          ui.info("Uploading #{cb.name.to_s.ljust(justify_width + 10)} [#{cb.version}]")
+          ui.info("Uploading #{left_justify_name(cb)} [#{cb.version}]")
           check_for_broken_links!(cb)
-          check_for_dependencies!(cb)
+          check_for_dependencies!(cb) if config[:check_dependencies] == true
         end
         Chef::CookbookUploader.new(cookbooks, force: config[:force], concurrency: config[:concurrency]).upload_cookbooks
       rescue Chef::Exceptions::CookbookFrozen => e
@@ -265,12 +286,12 @@ class Chef
       end
 
       def check_server_side_cookbooks(cookbook_name, version)
-        if @server_side_cookbooks[cookbook_name].nil?
+        if server_side_cookbooks[cookbook_name].nil?
           false
         else
-          versions = @server_side_cookbooks[cookbook_name]["versions"].collect { |versions| versions["version"] }
+          versions = server_side_cookbooks[cookbook_name]["versions"].collect { |versions| versions["version"] }
           Log.debug "Versions of cookbook '#{cookbook_name}' returned by the server: #{versions.join(", ")}"
-          @server_side_cookbooks[cookbook_name]["versions"].each do |versions_hash|
+          server_side_cookbooks[cookbook_name]["versions"].each do |versions_hash|
             if Chef::VersionConstraint.new(version).include?(versions_hash["version"])
               Log.debug "Matched cookbook '#{cookbook_name}' with constraint '#{version}' to cookbook version '#{versions_hash["version"]}' on the server"
               return true
