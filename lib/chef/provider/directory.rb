@@ -102,8 +102,13 @@ class Chef
               end
             end
           end
-          a.failure_message(Chef::Exceptions::InsufficientPermissions,
-            "Cannot create #{new_resource} at #{new_resource.path} due to insufficient permissions")
+          if !::File.exist?(parent_directory)
+            a.failure_message(Chef::Exceptions::EnclosingDirectoryDoesNotExist,
+              "Parent directory #{parent_directory} does not exist.")
+          elsif !Chef::FileAccessControl.writable?(parent_directory)
+            a.failure_message(Chef::Exceptions::InsufficientPermissions,
+              "Cannot create #{new_resource} at #{new_resource.path} due to insufficient permissions")
+          end
         end
 
         requirements.assert(:delete) do |a|

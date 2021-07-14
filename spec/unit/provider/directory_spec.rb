@@ -158,6 +158,11 @@ describe Chef::Provider::Directory do
           directory.run_action(:create)
         end
       end
+
+      it "does not create the directory if parent directory is not writable" do
+        allow(Chef::FileAccessControl).to receive(:writable?).and_return(false)
+        expect { directory.run_action(:create) }.to raise_error(Chef::Exceptions::InsufficientPermissions)
+      end
     end
 
     describe "when the directory does not exist" do
