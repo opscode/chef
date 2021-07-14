@@ -72,12 +72,11 @@ describe Chef::DataBagItem do
       expect { data_bag_item.raw_data = { "id" => "h1-_" } }.not_to raise_error
     end
 
-    it "should accept alphanum.alphanum for the id" do
-      expect { data_bag_item.raw_data = { "id" => "foo.bar" } }.not_to raise_error
-    end
-
-    it "should accept .alphanum for the id" do
-      expect { data_bag_item.raw_data = { "id" => ".bozo" } }.not_to raise_error
+    [ "alphanum.alphanum", ".alphanum"].each do |char|
+      it "should raise deprecated warning by using id #{char}" do
+        expect(ChefConfig.logger).to receive(:deprecation).with(" Data bag item ID with period is now deprecated, consider using ID without '.', you gave: \"#{char}\"").at_least(:once)
+        Chef::DataBagItem.validate_id!(char)
+      end
     end
 
     it "should raise an exception if the id contains anything but alphanum/-/_" do

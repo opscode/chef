@@ -42,6 +42,10 @@ class Chef
       if id_str.nil? || ( id_str !~ VALID_ID )
         raise Exceptions::InvalidDataBagItemID, "Data Bag items must have an id matching #{VALID_ID.inspect}, you gave: #{id_str.inspect}"
       end
+
+      if id_str.include? "."
+        ChefConfig.logger.deprecation(" Data bag item ID with period is now deprecated, consider using ID without '.', you gave: #{id_str.inspect}")
+      end
     end
 
     # delegate missing methods to the @raw_data Hash

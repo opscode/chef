@@ -42,6 +42,10 @@ class Chef
       if RESERVED_NAMES.match?(name)
         raise Exceptions::InvalidDataBagName, "DataBags may not have a name matching #{RESERVED_NAMES.inspect}, you gave #{name.inspect}"
       end
+
+      if name.include? "."
+        ChefConfig.logger.deprecation(" Databags name with period is now deprecated, consider using name without '.', you gave: #{name.inspect}")
+      end
     end
 
     # Create a new Chef::DataBag

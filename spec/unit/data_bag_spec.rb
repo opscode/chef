@@ -98,6 +98,11 @@ describe Chef::DataBag do
       @data_bag.save
     end
 
+    it "warning case" do
+      expect(ChefConfig.logger).to receive(:deprecation).with(" Databags name with period is now deprecated, consider using name without '.', you gave: \"test.test\"").at_least(:once)
+      Chef::DataBag.validate_name!("test.test")
+    end
+
     describe "when whyrun mode is enabled" do
       before do
         Chef::Config[:why_run] = true
