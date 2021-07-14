@@ -1307,7 +1307,7 @@ describe Chef::Knife::Bootstrap do
       context "when no identity file is specified" do
         it "generates the expected configuration (no keys, keys_only false)" do
           expect(knife.ssh_identity_opts).to eq( {
-            key_files: [ ],
+            key_files: [],
             keys_only: false,
           })
         end
