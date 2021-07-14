@@ -18,6 +18,7 @@
 #
 
 autoload :YAML, "yaml"
+autoload :ERB, "erb"
 require_relative "dsl/recipe"
 require_relative "mixin/from_file"
 require_relative "mixin/deprecation"
@@ -101,7 +102,9 @@ class Chef
     end
 
     def from_yaml(string)
-      res = ::YAML.safe_load(string)
+      rcp = ::ERB.new(string).result(binding)
+      res = ::YAML.safe_load(rcp)
+
       unless res.is_a?(Hash) && res.key?("resources")
         raise ArgumentError, "YAML recipe '#{source_file}' must contain a top-level 'resources' hash (YAML sequence), i.e. 'resources:'"
       end
@@ -110,13 +113,27 @@ class Chef
     end
 
     def from_hash(hash)
+      # Define resource collection
       hash["resources"].each do |rhash|
-        type = rhash.delete("type").to_sym
         name = rhash.delete("name")
+        if rhash.key? "type"
+          type = rhash.delete("type").to_sym
+        elsif name =~ /^(\w+?)\[(.+)\]$/
+          type = $1
+          name =$2
+        else
+          Chef::Application.fatal! "Resource type not defined"
+        end
+
         res = declare_resource(type, name)
         rhash.each do |key, value|
           # FIXME?: we probably need a way to instance_exec a string that contains block code against the property?
-          res.send(key, value)
+          # If methods are +notifies+ or +subscribes+ pass as array of args, else as simple array
+          if key == "notifies" || key == "subscribes"
+            res.send(key, *value)
+          else
+            res.send(key, value)
+          end
         end
       end
     end
