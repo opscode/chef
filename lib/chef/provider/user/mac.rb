@@ -143,27 +143,29 @@ class Chef
         #
 
         def create_user
-          cmd = [-"-addUser", new_resource.username]
-          cmd += ["-fullName", new_resource.comment] if prop_is_set?(:comment)
-          cmd += ["-UID", prop_is_set?(:uid) ? new_resource.uid : get_free_uid]
-          cmd += ["-shell", new_resource.shell]
-          cmd += ["-home", new_resource.home]
-          cmd += ["-admin"] if new_resource.admin
-
-          # We can technically create a new user without the admin credentials
-          # but without them the user cannot enable SecureToken, thus they cannot
-          # create other secure users or enable FileVault full disk encryption.
-          if prop_is_set?(:admin_username) && prop_is_set?(:admin_password)
-            cmd += ["-adminUser", new_resource.admin_username]
-            cmd += ["-adminPassword", new_resource.admin_password]
+          uid = prop_is_set?(:uid) ? new_resource.uid : get_free_uid
+          # 'sysadminctl' cannot create user with specified UID
+          # on Mac where Chef does not have full disk access
+          # But 'dscl' can
+          run_dscl('create', "/Users/#{new_resource.username}",
+                   'UniqueID', uid)
+          if prop_is_set?(:comment)
+            run_dscl('create', "/Users/#{new_resource.username}",
+                     'RealName', new_resource.comment)
+          else
+            # 'comment' field is optional for mac_user
+            # but 'load_current_resource' above needs it
+            # otherwise it will fail
+            run_dscl('create', "/Users/#{new_resource.username}",
+                     'RealName', new_resource.username)
           end
-
-          # sysadminctl doesn't exit with a non-zero exit code if it encounters
-          # a problem. We'll check stderr and make sure we see that it finished
-          # correctly.
-          res = run_sysadminctl(cmd)
-          unless /creating user/.match?(res.downcase)
-            raise Chef::Exceptions::User, "error when creating user: #{res}"
+          run_dscl('create', "/Users/#{new_resource.username}",
+                   'UserShell', new_resource.shell)
+          run_dscl('create', "/Users/#{new_resource.username}",
+                   'NFSHomeDirectory', new_resource.home)
+          if new_resource.admin
+            run_dscl('append', '/Groups/admin', 'GroupMembership',
+                     new_resource.username)
           end
 
           # Wait for the user to show up in the ds cache
@@ -179,18 +181,6 @@ class Chef
 
           if prop_is_set?(:password)
             converge_by("set password") { set_password }
-          end
-
-          if new_resource.manage_home
-            # "sysadminctl -addUser" will create the home directory if it's
-            # the default /Users/<username>, otherwise it sets it in plist
-            # but does not create it. Here we'll ensure that it gets created
-            # if we've been given a directory that is not the default.
-            unless ::File.directory?(new_resource.home) && ::File.exist?(new_resource.home)
-              converge_by("create home directory") do
-                shell_out!("createhomedir -c -u #{new_resource.username}")
-              end
-            end
           end
 
           if prop_is_set?(:gid)
@@ -209,6 +199,16 @@ class Chef
 
             converge_by("create primary group ID") do
               run_dscl("create", "/Users/#{new_resource.username}", "PrimaryGroupID", group_id)
+            end
+          end
+
+          # createhomedir needs user GID set first
+          # otherwise createhomedir will do nothing
+          # Always create homedir for all users
+          # because 'sysadminctl' does but 'dscl' does not
+          unless ::File.directory?(new_resource.home) && ::File.exist?(new_resource.home)
+            converge_by('create home directory') do
+              shell_out!("createhomedir -c -u #{new_resource.username}")
             end
           end
 
