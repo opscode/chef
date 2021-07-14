@@ -18,6 +18,11 @@ windows_printer_port "10.4.64.39" do
   port_protocol 2
 end
 
+# delete a port
+windows_printer_port "10.4.64.39" do
+  action :delete
+end
+
 # delete a port that doesn't exist
 windows_printer_port "10.4.64.37" do
   action :delete
@@ -35,4 +40,20 @@ windows_printer "HP LaserJet 5th Floor" do
   driver_name "Generic / Text Only"
   port_name "My awesome port"
   create_port false
+end
+
+# make sure we can update a printer
+windows_printer "Update the HP LaserJet 5th Floor printer" do
+  device_id "HP LaserJet 5th Floor"
+  ipv4_address "10.4.64.41"
+  driver_name "Generic / Text Only"
+  port_name "My awesome port"
+  comment "This is a comment on a printer"
+  default true
+  create_port false
+end
+
+# delete a printer
+windows_printer "HP LaserJet 6th Floor" do
+  action :delete
 end
