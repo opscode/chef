@@ -9,9 +9,9 @@ fips-platforms:
   - ubuntu-*-x86_64
   - windows-*
 builder-to-testers-map:
-  aix-7.1-powerpc:
-    - aix-7.1-powerpc
-    - aix-7.2-powerpc
+  # aix-7.1-powerpc:
+  #   - aix-7.1-powerpc
+  #   - aix-7.2-powerpc
   debian-9-x86_64:
     - debian-9-x86_64
     - debian-10-x86_64
@@ -24,13 +24,13 @@ builder-to-testers-map:
     - amazon-2-aarch64
   el-8-aarch64:
     - el-8-aarch64
-  el-7-ppc64:
-    - el-7-ppc64
-  el-7-ppc64le:
-    - el-7-ppc64le
-  el-7-s390x:
-    - el-7-s390x
-    - el-8-s390x
+  # el-7-ppc64:
+  #   - el-7-ppc64
+  # el-7-ppc64le:
+  #   - el-7-ppc64le
+  # el-7-s390x:
+  #   - el-7-s390x
+  #   - el-8-s390x
   el-7-x86_64:
     - el-7-x86_64
     - amazon-2-x86_64
@@ -39,7 +39,7 @@ builder-to-testers-map:
   freebsd-11-amd64:
     - freebsd-11-amd64
     - freebsd-12-amd64
-#    - freebsd-13-amd64
+    - freebsd-13-amd64
   mac_os_x-10.14-x86_64:
     - mac_os_x-10.14-x86_64
     - mac_os_x-10.15-x86_64
@@ -47,18 +47,18 @@ builder-to-testers-map:
   mac_os_x-11-arm64:
     - mac_os_x-11-arm64
     - mac_os_x-12-arm64
-  sles-12-s390x:
-    - sles-12-s390x
-    - sles-15-s390x
+  # sles-12-s390x:
+  #   - sles-12-s390x
+  #   - sles-15-s390x
   sles-12-x86_64:
     - sles-12-x86_64
     - sles-15-x86_64
   sles-15-aarch64:
     - sles-15-aarch64
-  solaris2-5.11-i386:
-    - solaris2-5.11-i386
-  solaris2-5.11-sparc:
-    - solaris2-5.11-sparc
+  # solaris2-5.11-i386:
+  #   - solaris2-5.11-i386
+  # solaris2-5.11-sparc:
+  #   - solaris2-5.11-sparc
   ubuntu-18.04-aarch64:
     - ubuntu-18.04-aarch64
     - ubuntu-20.04-aarch64
