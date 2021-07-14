@@ -32,14 +32,8 @@ class Chef
     # Policyfile is a policy builder implementation that gets run
     # list and cookbook version information from a single document.
     #
-    # == Unsupported Options:
-    # * override_runlist:: This could potentially be integrated into the
-    # policyfile, or replaced with a similar feature that has different
-    # semantics.
-    # * specific_recipes:: put more design thought into this use case.
-    # * run_list in json_attribs:: would be ignored anyway, so it raises an error.
-    # * chef-solo:: not currently supported. Need more design thought around
-    # how this should work.
+    # Does not support legacy chef-solo or roles/environments.
+    #
     class Policyfile
 
       class UnsupportedFeature < StandardError; end
@@ -96,10 +90,6 @@ class Chef
           raise UnsupportedFeature, "Policyfile does not support chef-solo. Use #{ChefUtils::Dist::Infra::CLIENT} local mode instead."
         end
 
-        if json_attribs && json_attribs.key?("run_list")
-          raise UnsupportedFeature, "Policyfile does not support setting the run_list in json data."
-        end
-
         if Chef::Config[:environment] && !Chef::Config[:environment].chomp.empty?
           raise UnsupportedFeature, "Policyfile does not work with an Environment configured."
         end
@@ -147,6 +137,9 @@ class Chef
         expand_run_list
         apply_policyfile_attributes
 
+        if persistent_run_list_set?
+          Chef::Log.warn("The node.run_list setting is overriding the Policyfile run_list")
+        end
         Chef::Log.info("Run List is [#{run_list}]")
         Chef::Log.info("Run List expands to [#{run_list_with_versions_for_display(run_list).join(", ")}]")
 
@@ -203,7 +196,7 @@ class Chef
       #
       # @return [RunListExpansionIsh] A RunListExpansion duck-type.
       def expand_run_list
-        CookbookCacheCleaner.instance.skip_removal = true if named_run_list_requested?
+        validate_run_list!(run_list)
 
         node.run_list(run_list)
         node.automatic_attrs[:policy_revision] = revision_id
@@ -229,6 +222,18 @@ class Chef
       end
 
       ## Internal Public API ##
+
+      # @api private
+      #
+      # Validate run_list against policyfile cookbooks
+      #
+      def validate_run_list!(run_list)
+        run_list.map do |recipe_spec|
+          cookbook, recipe = parse_recipe_spec(recipe_spec)
+          lock_data = cookbook_lock_for(cookbook)
+          raise PolicyfileError, "invalid run_list item '#{recipe_spec}' not in cookbook set of PolicyFile #{policyfile_location}" unless lock_data
+        end
+      end
 
       # @api private
       #
@@ -278,7 +283,12 @@ class Chef
       def parse_recipe_spec(recipe_spec)
         rmatch = recipe_spec.to_s.match(/recipe\[([^:]+)::([^:]+)\]/)
         if rmatch.nil?
-          raise PolicyfileError, "invalid recipe specification #{recipe_spec} in Policyfile from #{policyfile_location}"
+          rmatch = recipe_spec.to_s.match(/recipe\[([^:]+)\]/)
+          if rmatch.nil?
+            raise PolicyfileError, "invalid recipe specification #{recipe_spec} in Policyfile from #{policyfile_location}"
+          else
+            [rmatch[1], "default"]
+          end
         else
           [rmatch[1], rmatch[2]]
         end
@@ -294,7 +304,11 @@ class Chef
       def run_list
         return override_runlist.map(&:to_s) if override_runlist
 
-        if named_run_list_requested?
+        if json_attribs["run_list"]
+          json_attribs["run_list"]
+        elsif persistent_run_list_set?
+          node.run_list
+        elsif named_run_list_requested?
           named_run_list || raise(ConfigurationError,
             "Policy '#{retrieved_policy_name}' revision '#{revision_id}' does not have named_run_list '#{named_run_list_name}'" +
             "(available named_run_lists: [#{available_named_run_lists.join(", ")}])")
@@ -450,7 +464,7 @@ class Chef
       # should be reduced to a single call.
       def cookbooks_to_sync
         @cookbook_to_sync ||= begin
-          events.cookbook_resolution_start(run_list_with_versions_for_display(policy["run_list"]))
+          events.cookbook_resolution_start(run_list_with_versions_for_display(run_list))
 
           cookbook_versions_by_name = cookbook_locks.inject({}) do |cb_map, (name, lock_data)|
             cb_map[name] = manifest_for(name, lock_data)
@@ -462,7 +476,7 @@ class Chef
         end
       rescue Exception => e
         # TODO: wrap/munge exception to provide helpful error output
-        events.cookbook_resolution_failed(run_list_with_versions_for_display(policy["run_list"]), e)
+        events.cookbook_resolution_failed(run_list_with_versions_for_display(run_list), e)
         raise
       end
 
@@ -530,6 +544,10 @@ class Chef
 
       def available_named_run_lists
         (policy["named_run_lists"] || {}).keys
+      end
+
+      def persistent_run_list_set?
+        Chef::Config[:policy_persist_run_list] && node.run_list && !node.run_list.empty?
       end
 
       def named_run_list_requested?

@@ -644,6 +644,16 @@ module ChefConfig
     # effect if `policy_document_native_api` is set to `false`.
     default :deployment_group, nil
 
+    # When using policyfiles you can optionally set it to read the node.run_list
+    # from the server and have that override the policyfile run_list or the
+    # named_run_list set in config.  With policyfiles there is no depsolving done
+    # on the run_list items so every item in the run_list must be in the set of
+    # cookbooks pushed to the node.  This enables flows where the node can change
+    # its run_list and have it persist or to bootstrap nodes with the -j flag.  If
+    # no run_list is set on the server node object then the configured named_run_list
+    # or run_list out of the policy is used.
+    default :policy_persist_run_list, false
+
     # Set these to enable SSL authentication / mutual-authentication
     # with the server
 

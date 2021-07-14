@@ -72,40 +72,40 @@ describe Chef::PolicyBuilder::Policyfile do
 
   let(:policyfile_default_attributes) do
     {
-        "policyfile_default_attr" => "policyfile_default_value",
-        "top_level_attr" => "hat",
+      "policyfile_default_attr" => "policyfile_default_value",
+      "top_level_attr" => "hat",
+      "baseline_attr" => {
+        "one" => 1,
+        "two" => 2,
+        "deep" => {
+          "three" => 3,
+          "four" => [4],
+          "five" => [5],
+        },
+      },
+      "policy_group_value" => {
         "baseline_attr" => {
-          "one" => 1,
-          "two" => 2,
-          "deep" => {
-              "three" => 3,
-              "four" => [4],
-              "five" => [5],
-          },
+          "one" => 111,
         },
-        "policy_group_value" => {
-          "baseline_attr" => {
-            "one" => 111,
-          },
-        },
-      }
+      },
+    }
   end
 
   let(:policyfile_override_attributes) do
     {
-       "policyfile_override_attr" => "policyfile_override_value",
-       "baseline_attr" => {
-         "deep" => {
-           "three" => 333 },
-       },
-       "policy_group_value" => {
-         "top_level_attr" => "cat",
-         "baseline_attr" => {
-           "deep" => {
-             "four" => [444],
-           },
-         },
-       },
+      "policyfile_override_attr" => "policyfile_override_value",
+      "baseline_attr" => {
+        "deep" => {
+          "three" => 333 },
+      },
+      "policy_group_value" => {
+        "top_level_attr" => "cat",
+        "baseline_attr" => {
+          "deep" => {
+            "four" => [444],
+          },
+        },
+      },
     }
   end
 
@@ -159,14 +159,6 @@ describe Chef::PolicyBuilder::Policyfile do
 
       it "does not error" do
         expect { initialize_pb }.not_to raise_error
-      end
-    end
-
-    context "when json_attribs contains a run_list" do
-      let(:json_attribs) { { "run_list" => [] } }
-
-      it "errors on create" do
-        expect { initialize_pb }.to raise_error(err_namespace::UnsupportedFeature)
       end
     end
 
@@ -347,9 +339,9 @@ describe Chef::PolicyBuilder::Policyfile do
           expect { policy_builder.validate_policyfile }.to raise_error(err_namespace::PolicyfileError)
         end
 
-        it "errors if the policyfile json contains non-fully qualified recipe items" do
+        it "does not error if the policyfile json contains non-fully qualified recipe items" do
           parsed_policyfile_json["run_list"] = ["recipe[foo]"]
-          expect { policy_builder.validate_policyfile }.to raise_error(err_namespace::PolicyfileError)
+          expect { policy_builder.validate_policyfile }.not_to raise_error
         end
 
         it "errors if the policyfile doesn't have a run_list key" do
@@ -397,8 +389,8 @@ describe Chef::PolicyBuilder::Policyfile do
             {
               id: "_policy_node",
               run_list: [
-               { type: "recipe", name: "test::default", skipped: false, version: nil },
-               { type: "recipe", name: "test::other", skipped: false, version: nil },
+                { type: "recipe", name: "test::default", skipped: false, version: nil },
+                { type: "recipe", name: "test::other", skipped: false, version: nil },
               ],
             }
           end
@@ -670,10 +662,6 @@ describe Chef::PolicyBuilder::Policyfile do
               expect(node[:recipes]).to eq( ["example1::default"] )
             end
 
-            it "disables the cookbook cache cleaner" do
-              expect(Chef::CookbookCacheCleaner.instance.skip_removal).to be(true)
-            end
-
           end
         end
 
@@ -880,6 +868,89 @@ describe Chef::PolicyBuilder::Policyfile do
 
             include_examples "fetching cookbooks when they exist"
 
+          end
+
+        end
+      end
+
+      describe "selecting the run_list" do
+        let(:node) do
+          node = Chef::Node.new
+          node.name(node_name)
+          node
+        end
+
+        before do
+          allow(policy_builder).to receive(:node).and_return(node)
+        end
+
+        context "when json_attribs contains a run_list" do
+          let(:json_attribs) { { "run_list" => [ "recipe[something::default]" ] } }
+
+          it "reads the run_list from the json_attribs" do
+            expect(policy_builder.run_list).to eql(json_attribs["run_list"])
+          end
+
+          it "ignores the node.run_list" do
+            node.run_list.reset!("recipe[incorrect::incorrect]")
+            expect(policy_builder.run_list).to eql(json_attribs["run_list"])
+          end
+
+          it "ignores the node.run_list if the Chef::Config value is set" do
+            Chef::Config[:policy_persist_run_list] = true
+            node.run_list.reset!("recipe[incorrect::incorrect]")
+            expect(policy_builder.run_list).to eql(json_attribs["run_list"])
+          end
+        end
+
+        it "reads the run_list from the policyfile" do
+          expect(policy_builder.run_list).to eql(policyfile_run_list)
+        end
+
+        it "ignores the node.run_list by default" do
+          node.run_list.reset!("recipe[incorrect::incorrect]")
+          expect(policy_builder.run_list).to eql(policyfile_run_list)
+        end
+
+        it "uses the node.run_list if the Chef::Config value is set" do
+          Chef::Config[:policy_persist_run_list] = true
+          node.run_list.reset!("recipe[correct::default]")
+          expect(policy_builder.run_list).to eql(node.run_list)
+        end
+
+        it "does not use an empty node.run_list" do
+          Chef::Config[:policy_persist_run_list] = true
+          node.run_list.reset!
+          expect(policy_builder.run_list).to eql(policyfile_run_list)
+        end
+
+        context "with a valid named_run_list" do
+          let(:parsed_policyfile_json) do
+            basic_valid_policy_data.dup.tap do |p|
+              p["named_run_lists"] = {
+                "deploy-app" => [ "recipe[example1::default]" ],
+              }
+            end
+          end
+
+          it "uses the named_run_list over the policyfile" do
+            Chef::Config[:named_run_list] = "deploy-app"
+            expect(policy_builder.run_list).to eq([ "recipe[example1::default]" ])
+          end
+
+          it "is overridden if the run_list is persistent" do
+            Chef::Config[:named_run_list] = "deploy-app"
+            Chef::Config[:policy_persist_run_list] = true
+            node.run_list.reset!("recipe[correct::default]")
+            expect(policy_builder.run_list).to eql(node.run_list)
+          end
+
+          context "when json_attribs contains a run_list" do
+            let(:json_attribs) { { "run_list" => [ "recipe[something::default]" ] } }
+
+            it "overrides the named_run_list" do
+              expect(policy_builder.run_list).to eql(json_attribs["run_list"])
+            end
           end
 
         end
