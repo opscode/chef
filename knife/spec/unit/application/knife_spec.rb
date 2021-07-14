@@ -114,7 +114,6 @@ describe Chef::Application::Knife do
       it "overwrites the Chef::Config value when passed --fips" do
         with_argv(*%w{noop knife command --fips}) do
           expect(@knife).to receive(:exit).with(0)
-          expect(Chef::Config).to receive(:enable_fips_mode)
           @knife.run
           expect(Chef::Config[:fips]).to eq(true)
         end
@@ -129,7 +128,6 @@ describe Chef::Application::Knife do
       it "initializes fips mode when passed --fips" do
         with_argv(*%w{noop knife command --fips}) do
           expect(@knife).to receive(:exit).with(0)
-          expect(Chef::Config).to receive(:enable_fips_mode)
           @knife.run
           expect(Chef::Config[:fips]).to eq(true)
         end

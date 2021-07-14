@@ -660,7 +660,6 @@ class Chef
       unless config[:fips].nil?
         Chef::Config[:fips] = config[:fips]
       end
-      Chef::Config.init_openssl
     end
 
     def root_rest
