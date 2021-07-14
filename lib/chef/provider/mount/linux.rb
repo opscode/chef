@@ -57,6 +57,10 @@ class Chef
             when /\A#{Regexp.escape(real_mount_point)}\s+#{device_mount_regex}\[/
               mounted = true
               logger.trace("Network device #{device_logstring} mounted as #{real_mount_point}")
+            # Permalink for network device mounted with a space in device name https://rubular.com/r/CK5zWWms96CRES
+            when /\A#{Regexp.escape(real_mount_point)}\s+#{device_sub_space_regex}\s/
+              mounted = true
+              logger.trace("Network device #{device_logstring} mounted as #{real_mount_point}")
             end
           end
           @current_resource.mounted(mounted)
