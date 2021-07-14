@@ -600,6 +600,36 @@ describe "Chef::Resource.property validation" do
       it "does not fail if it is not specified, on running the doit2 action" do
         expect { resource.run_action(:doit2) }.not_to raise_error
       end
+
+      context "when an action does not require it" do
+        before do
+          resource.action(:doit2)
+        end
+
+        it "retrieval succeeds if x is not set when resource uses the doit2 action" do
+          expect { resource.x }.not_to raise_error
+        end
+
+        it "succeeds with set to nil when resource uses the doit2 action" do
+          expect { resource.x nil }.not_to raise_error
+        end
+      end
+
+      context "when an action requires it" do
+        before do
+          # NOTE: this is already the default action, but it doesn't
+          # hurt to be clear about the situation.
+          resource.action(:doit)
+        end
+
+        it "if x is not specified, retrieval fails for the doit action" do
+          expect { resource.x }.to raise_error Chef::Exceptions::ValidationFailed
+        end
+
+        it "value nil is not valid for the doit action (required means 'not nil')" do
+          expect { resource.x nil }.to raise_error Chef::Exceptions::ValidationFailed
+        end
+      end
     end
 
     with_property ":x, String, required: true" do
