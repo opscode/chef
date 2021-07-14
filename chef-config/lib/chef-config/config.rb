@@ -491,9 +491,7 @@ module ChefConfig
     # * "hosted_everything": ChefFS manages all object types as of the Chef 12
     #   Server, including RBAC objects and Policyfile objects (new to Chef 12).
     default :repo_mode do
-      if local_mode && !chef_zero.osc_compat
-        "hosted_everything"
-      elsif %r{/+organizations/.+}.match?(chef_server_url)
+      if local_mode || %r{/+organizations/.+}.match?(chef_server_url)
         "hosted_everything"
       else
         "everything"
@@ -517,16 +515,6 @@ module ChefConfig
       # what you want when using Chef Zero to serve a single Chef Repo. Setting
       # this to `false` enables multi-tenant.
       default :single_org, "chef"
-
-      # Whether Chef Zero should operate in a mode analogous to OSS Chef Server
-      # 11 (true) or Chef Server 12 (false). Chef Zero can still serve
-      # policyfile objects in Chef 11 mode, as long as `repo_mode` is set to
-      # "hosted_everything". The primary differences are:
-      # * Chef 11 mode doesn't support multi-tenant, so there is no
-      #   distinction between global and org-specific objects (since there are
-      #   no orgs).
-      # * Chef 11 mode doesn't expose RBAC objects
-      default :osc_compat, false
     end
 
     # RFCxxx Target Mode support, value is the name of a remote device to Chef against

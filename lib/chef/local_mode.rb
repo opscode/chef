@@ -63,7 +63,6 @@ class Chef
         server_options = {}
         server_options[:data_store] = data_store
         server_options[:log_level] = Chef::Log.level
-        server_options[:osc_compat] = Chef::Config.chef_zero.osc_compat
         server_options[:single_org] = Chef::Config.chef_zero.single_org
 
         server_options[:host] = Chef::Config.chef_zero.host

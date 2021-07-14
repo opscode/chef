@@ -31,10 +31,6 @@ describe "ChefFSDataStore tests", :workstation do
   let(:cookbook_z_100_metadata_rb) { cb_metadata("z", "1.0.0") }
 
   describe "with repo mode 'hosted_everything' (default)" do
-    before do
-      Chef::Config.chef_zero.osc_compat = false
-    end
-
     when_the_repository "has one of each thing" do
       before do
         file "clients/x.json", {}
@@ -427,7 +423,6 @@ describe "ChefFSDataStore tests", :workstation do
   describe "with repo mode 'everything'" do
     before do
       Chef::Config.repo_mode = "everything"
-      Chef::Config.chef_zero.osc_compat = true
     end
 
     when_the_repository "has one of each thing" do

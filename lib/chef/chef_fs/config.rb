@@ -146,8 +146,8 @@ class Chef
 
         if @chef_config[:repo_mode] == "everything" && is_hosted? && !ui.nil?
           ui.warn %Q{You have repo_mode set to 'everything', but your chef_server_url
-              looks like it might be a hosted setup.  If this is the case please use
-              hosted_everything or allow repo_mode to default}
+              looks like it might be Chef Infra Server 12+ or Hosted Chef. If this is
+              the case, use 'hosted_everything' or allow 'repo_mode' to default.}
         end
         # Default to getting *everything* from the server.
         unless @chef_config[:repo_mode]

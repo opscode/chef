@@ -612,15 +612,6 @@ RSpec.describe ChefConfig::Config do
             it "defaults to 'hosted_everything'" do
               expect(ChefConfig::Config[:repo_mode]).to eq("hosted_everything")
             end
-
-            context "and osc_compat is enabled" do
-
-              before { ChefConfig::Config.chef_zero.osc_compat = true }
-
-              it "defaults to 'everything'" do
-                expect(ChefConfig::Config[:repo_mode]).to eq("everything")
-              end
-            end
           end
 
           context "when local mode is not enabled" do
