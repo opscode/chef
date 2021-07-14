@@ -86,8 +86,8 @@ class Chef
             client_rb << "# Using default node name (fqdn)\n"
           end
 
-          if config[:config_log_level]
-            client_rb << %Q{log_level :#{config[:config_log_level]}\n}
+          if chef_config[:config_log_level]
+            client_rb << %Q{log_level :#{chef_config[:config_log_level]}\n}
           else
             client_rb << "log_level        :auto\n"
           end

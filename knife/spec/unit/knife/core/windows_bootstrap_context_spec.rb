@@ -169,7 +169,7 @@ describe Chef::Knife::Core::WindowsBootstrapContext do
         echo.file_backup_path  "c:/chef/backup"
         echo.cache_options     ^({:path =^> "C:\\\\chef\\\\cache\\\\checksums", :skip_expires =^> true}^)
         echo.# Using default node name ^(fqdn^)
-        echo.log_level        :auto
+        echo.log_level :info
         echo.log_location       STDOUT
       EXPECTED
       expect(bootstrap_context.config_content).to eq expected
