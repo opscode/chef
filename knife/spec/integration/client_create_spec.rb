@@ -50,6 +50,7 @@ describe "knife client create", :workstation do
 
     it "saves the private key to a file" do
       Dir.mktmpdir do |tgt|
+        File.open("#{tgt}/bah.pem", "w") { |pub| pub.write("test key") }
         knife("client create -f #{tgt}/bah.pem bah").should_succeed stderr: out
         expect(File).to exist("#{tgt}/bah.pem")
       end

@@ -81,6 +81,14 @@ class Chef
           client.public_key File.read(File.expand_path(config[:public_key]))
         end
 
+        # Check the file before creating the client so the api is more transactional.
+        if config[:file]
+          file = config[:file]
+          dir_name = File.dirname(file)
+          check_writable_or_exists(dir_name, "Directory")
+          check_writable_or_exists(file, "File")
+        end
+
         output = edit_hash(client)
         final_client = create_client(output)
         ui.info("Created #{final_client}")
@@ -94,6 +102,19 @@ class Chef
           else
             puts final_client.private_key
           end
+        end
+      end
+
+      # To check if file or directory exists or writable and raise execption accordingly
+      def check_writable_or_exists(file, type)
+        if File.exist?(file)
+          unless File.writable?(file)
+            ui.fatal "#{type} #{file} is not writable. Check permissions."
+            exit 1
+          end
+        else
+          ui.fatal "#{type} #{file} does not exist."
+          exit 1
         end
       end
     end

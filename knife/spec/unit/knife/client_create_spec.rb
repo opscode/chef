@@ -122,10 +122,12 @@ describe Chef::Knife::ClientCreate do
         end
 
         it "should write the private key to a file" do
-          knife.config[:file] = "/tmp/monkeypants"
+          file = Tempfile.new
+          file_path = file.path
+          knife.config[:file] = file_path
           filehandle = double("Filehandle")
           expect(filehandle).to receive(:print).with("woot")
-          expect(File).to receive(:open).with("/tmp/monkeypants", "w").and_yield(filehandle)
+          expect(File).to receive(:open).with(file_path, "w").and_yield(filehandle)
           knife.run
         end
       end
@@ -162,6 +164,39 @@ describe Chef::Knife::ClientCreate do
         it "should create an validator client" do
           knife.run
           expect(client.validator).to be_truthy
+        end
+      end
+
+      describe "with -f or --file when dir or file is not writable or does not exists" do
+        let(:dir_path) { File.expand_path(File.join(CHEF_SPEC_DATA, "knife", "temp_dir")) }
+        let(:file_path) { File.expand_path(File.join(dir_path, "tmp.pem")) }
+
+        it "when the directory does not exists" do
+          knife.config[:file] = "example/client1.pem"
+          expect(knife.ui).to receive(:fatal).with("Directory example does not exist.")
+          expect { knife.run }.to raise_error(SystemExit)
+        end
+
+        it "when the directory not writable" do
+          knife.config[:file] = file_path
+          File.chmod(777, dir_path)
+          expect(knife.ui).to receive(:fatal).with("Directory #{dir_path} is not writable. Check permissions.")
+          expect { knife.run }.to raise_error(SystemExit)
+        end
+
+        it "when the file does not exists" do
+          path = "#{dir_path}/client1.pem"
+          knife.config[:file] = path
+          File.chmod(0755, dir_path)
+          expect(knife.ui).to receive(:fatal).with("File #{path} does not exist.")
+          expect { knife.run }.to raise_error(SystemExit)
+        end
+
+        it "when the file is not writable" do
+          knife.config[:file] = file_path
+          File.chmod(777, file_path)
+          expect(knife.ui).to receive(:fatal).with("File #{file_path} is not writable. Check permissions.")
+          expect { knife.run }.to raise_error(SystemExit)
         end
       end
     end
