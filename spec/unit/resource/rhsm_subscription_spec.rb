@@ -18,15 +18,20 @@
 require "spec_helper"
 
 describe Chef::Resource::RhsmSubscription do
-  let(:resource) { Chef::Resource::RhsmSubscription.new("fakey_fakerton") }
-  let(:provider) { resource.provider_for_action(:attach) }
+  let(:event_dispatch) { Chef::EventDispatch::Dispatcher.new }
+  let(:node) { Chef::Node.new }
+  let(:run_context) { Chef::RunContext.new(node, {}, event_dispatch) }
+
+  let(:pool_id) { "8a8dd78c766232550226b46e59404aba" }
+  let(:resource) { Chef::Resource::RhsmSubscription.new(pool_id, run_context) }
+  let(:provider) { resource.provider_for_action(resource.action) }
 
   it "has a resource name of :rhsm_subscription" do
     expect(resource.resource_name).to eql(:rhsm_subscription)
   end
 
   it "the pool_id property is the name_property" do
-    expect(resource.pool_id).to eql("fakey_fakerton")
+    expect(resource.pool_id).to eql(pool_id)
   end
 
   it "sets the default action as :attach" do
@@ -36,6 +41,46 @@ describe Chef::Resource::RhsmSubscription do
   it "supports :attach, :remove actions" do
     expect { resource.action :attach }.not_to raise_error
     expect { resource.action :remove }.not_to raise_error
+  end
+
+  describe "#action_attach" do
+    before do
+      dummy = Mixlib::ShellOut.new
+      allow_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}").and_return(dummy)
+      allow(dummy).to receive(:stdout).and_return("Successfully attached a subscription for: My Subscription")
+      allow(dummy).to receive(:exitstatus).and_return(0)
+      allow(dummy).to receive(:error?).and_return(false)
+      node.automatic_attrs[:platform_family] = "rhel"
+      node.automatic_attrs[:platform_version] = "7.3"
+      allow_any_instance_of(Chef::Provider::Package::Yum).to receive(:installed_version).with(0).and_return(Chef::Provider::Package::Yum::Version.new(nil, nil, nil))
+      allow_any_instance_of(Chef::Provider::Package::Yum).to receive(:available_version).with(0).and_return(Chef::Provider::Package::Yum::Version.new(nil, nil, nil))
+      allow_any_instance_of(Chef::Provider::Package::Yum::PythonHelper).to receive(:close_rpmdb)
+    end
+
+    context "when already attached to pool" do
+      before do
+        allow(provider).to receive(:subscription_attached?).with(resource.pool_id).and_return(true)
+      end
+
+      it "does not attach to pool" do
+        expect(resource).not_to receive(:shell_out!)
+        resource.run_action(:attach)
+      end
+    end
+
+    context "when not attached to pool" do
+      before do
+        allow(provider).to receive(:subscription_attached?).with(resource.pool_id).and_return(false)
+      end
+
+      it "attaches to pool" do
+        expect_any_instance_of(Chef::Mixin::ShellOut).to receive(:shell_out!).with("subscription-manager attach --pool=#{resource.pool_id}")
+        resource.run_action(:attach)
+      end
+
+      # No idea how to test this, but I think it should be unit tested.
+      it "flushes package provider cache"
+    end
   end
 
   describe "#subscription_attached?" do

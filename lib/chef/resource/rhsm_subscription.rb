@@ -32,11 +32,11 @@ class Chef
         name_property: true
 
       action :attach, description: "Attach the node to a subscription pool." do
-        execute "Attach subscription pool #{new_resource.pool_id}" do
-          command "subscription-manager attach --pool=#{new_resource.pool_id}"
-          default_env true
-          action :run
-          not_if { subscription_attached?(new_resource.pool_id) }
+        unless subscription_attached?(new_resource.pool_id)
+          converge_by("attach subscription pool #{new_resource.pool_id}") do
+            shell_out!("subscription-manager attach --pool=#{new_resource.pool_id}")
+            build_resource(:package, "rhsm_subscription-#{new_resource.pool_id}-flush_cache").run_action(:flush_cache)
+          end
         end
       end
 
